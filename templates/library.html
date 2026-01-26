@@ -6,13 +6,18 @@
     <title>My Library</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f4f4f9; margin: 0; padding: 40px; }
-        .container { max-width: 800px; margin: 0 auto; }
+        .container { max-width: 1200px; margin: 0 auto; }
         h1 { color: #333; border-bottom: 2px solid #ddd; padding-bottom: 10px; }
-        .book-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; margin-top: 30px; }
-        .book-card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); transition: transform 0.2s; }
-        .book-title { font-size: 1.2em; font-weight: bold; color: #2c3e50; margin-bottom: 10px; }
-        .book-meta { color: #666; font-size: 0.9em; margin-bottom: 15px; }
-        .btn { display: inline-block; background: #3498db; color: white; text-decoration: none; padding: 8px 15px; border-radius: 4px; font-size: 0.9em; }
+        .book-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 30px; margin-top: 30px; }
+        .book-card { background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); transition: transform 0.2s, box-shadow 0.2s; overflow: hidden; cursor: pointer; }
+        .book-card:hover { transform: translateY(-5px); box-shadow: 0 4px 16px rgba(0,0,0,0.15); }
+        .book-cover { width: 100%; height: 280px; overflow: hidden; background: #f0f0f0; display: flex; align-items: center; justify-content: center; }
+        .book-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .book-cover-placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-weight: bold; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; font-size: 1.2em; text-align: center; padding: 20px; box-sizing: border-box; }
+        .book-info { padding: 20px; }
+        .book-title { font-size: 1.1em; font-weight: bold; color: #2c3e50; margin-bottom: 8px; line-height: 1.3; min-height: 2.6em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .book-meta { color: #666; font-size: 0.85em; margin-bottom: 15px; }
+        .btn { display: inline-block; background: #3498db; color: white; text-decoration: none; padding: 8px 16px; border-radius: 4px; font-size: 0.9em; width: 100%; text-align: center; box-sizing: border-box; }
         .btn:hover { background: #2980b9; }
     </style>
 </head>
@@ -26,13 +31,20 @@
 
         <div class="book-grid">
             {% for book in books %}
-            <div class="book-card">
-                <div class="book-title">{{ book.title }}</div>
-                <div class="book-meta">
-                    {{ book.author }}<br>
-                    {{ book.chapters }} sections
+            <div class="book-card" onclick="window.location.href='/read/{{ book.id }}/0'">
+                <div class="book-cover">
+                    <img src="/cover/{{ book.id }}" 
+                         alt="{{ book.title }}" 
+                         onerror="this.style.display='none'; this.parentElement.innerHTML='<div class=\'book-cover-placeholder\'>{{ book.title }}</div>'">
                 </div>
-                <a href="/read/{{ book.id }}/0" class="btn">Read Book</a>
+                <div class="book-info">
+                    <div class="book-title">{{ book.title }}</div>
+                    <div class="book-meta">
+                        {{ book.author }}<br>
+                        {{ book.chapters }} sections
+                    </div>
+                    <a href="/read/{{ book.id }}/0" class="btn" onclick="event.stopPropagation()">Read Book</a>
+                </div>
             </div>
             {% endfor %}
         </div>
