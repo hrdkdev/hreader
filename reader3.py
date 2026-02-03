@@ -587,6 +587,240 @@ def process_all_epubs(directory: str = ".") -> tuple[int, int]:
     return processed, skipped
 
 
+def get_chapter_title_for_index(book: Book, chapter_index: int) -> str:
+    """
+    Get the chapter title for a given spine index.
+    First tries to match via TOC, falls back to spine title.
+    """
+    if chapter_index < 0 or chapter_index >= len(book.spine):
+        return f"Chapter {chapter_index + 1}"
+
+    chapter = book.spine[chapter_index]
+    chapter_href = chapter.href
+
+    # Try to find matching TOC entry
+    def find_in_toc(toc_entries: List[TOCEntry]) -> Optional[str]:
+        for entry in toc_entries:
+            if entry.file_href == chapter_href:
+                return entry.title
+            if entry.children:
+                result = find_in_toc(entry.children)
+                if result:
+                    return result
+        return None
+
+    toc_title = find_in_toc(book.toc)
+    if toc_title:
+        return toc_title
+
+    # Fallback to spine title
+    return (
+        chapter.title
+        if chapter.title != f"Section {chapter_index + 1}"
+        else f"Chapter {chapter_index + 1}"
+    )
+
+
+def update_obsidian_highlights_section(note_path: str, highlights_md: str) -> bool:
+    """
+    Update the highlights section in an Obsidian note.
+    If ## Highlights section exists, replace it entirely.
+    Otherwise, append it after ## notes section or at the end.
+
+    Args:
+        note_path: Path to the Obsidian markdown file
+        highlights_md: The markdown content for the highlights section
+
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        with open(note_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        # Pattern to match the ## Highlights section and everything after it
+        # until the next ## header or end of file
+        highlights_pattern = re.compile(
+            r"(## Highlights\s*\n)(.*?)(?=\n## |\Z)", re.DOTALL
+        )
+
+        if highlights_pattern.search(content):
+            # Replace existing highlights section
+            new_content = highlights_pattern.sub(highlights_md, content)
+        else:
+            # Append after ## notes section if it exists
+            notes_pattern = re.compile(r"(## notes\s*\n)")
+            if notes_pattern.search(content):
+                # Insert after ## notes
+                new_content = notes_pattern.sub(r"\1\n" + highlights_md + "\n", content)
+            else:
+                # Just append at the end
+                new_content = content.rstrip() + "\n\n" + highlights_md + "\n"
+
+        with open(note_path, "w", encoding="utf-8") as f:
+            f.write(new_content)
+
+        return True
+
+    except Exception as e:
+        print(f"Error updating highlights section: {e}")
+        return False
+
+
+def export_highlights_to_obsidian(book_data_dir: str) -> bool:
+    """
+    Export highlights from a book to its corresponding Obsidian note.
+
+    Loads highlights from highlights.json, formats them as markdown quotes,
+    and appends/updates the ## Highlights section in the book's Obsidian note.
+
+    Args:
+        book_data_dir: Path to the book's data directory (e.g., 'naval_data')
+
+    Returns:
+        True if export was successful, False otherwise.
+    """
+    import json
+
+    # Load the book
+    pkl_path = os.path.join(book_data_dir, "book.pkl")
+    if not os.path.exists(pkl_path):
+        print(f"Error: {pkl_path} not found")
+        return False
+
+    with open(pkl_path, "rb") as f:
+        book = pickle.load(f)
+
+    # Load highlights
+    highlights_path = os.path.join(book_data_dir, "highlights.json")
+    if not os.path.exists(highlights_path):
+        print(f"No highlights file found for {book.metadata.title}")
+        return False
+
+    with open(highlights_path, "r", encoding="utf-8") as f:
+        highlights_data = json.load(f)
+
+    if not highlights_data:
+        print(f"No highlights found for {book.metadata.title}")
+        return False
+
+    # Find the corresponding Obsidian note
+    title_sanitized = sanitize_filename(book.metadata.title)
+    note_filename = f"{title_sanitized}.md"
+    note_path = os.path.join(OBSIDIAN_BOOKS_PATH, note_filename)
+
+    if not os.path.exists(note_path):
+        print(f"Warning: Obsidian note not found at {note_path}")
+        print("Creating the book note first...")
+        if not export_to_obsidian(book_data_dir):
+            print(f"Failed to create book note for {book.metadata.title}")
+            return False
+
+    # Flatten and sort highlights by chapter_index, then by start_offset
+    all_highlights = []
+    for chapter_key, chapter_highlights in highlights_data.items():
+        chapter_index = int(chapter_key)
+        for h in chapter_highlights:
+            all_highlights.append(
+                {
+                    "chapter_index": chapter_index,
+                    "text": h.get("text", ""),
+                    "start_offset": h.get("start_offset", 0),
+                    "created_at": h.get("created_at", ""),
+                }
+            )
+
+    # Sort by chapter_index first, then by start_offset (reading order)
+    all_highlights.sort(key=lambda x: (x["chapter_index"], x["start_offset"]))
+
+    if not all_highlights:
+        print(f"No valid highlights to export for {book.metadata.title}")
+        return False
+
+    # Build markdown content
+    lines = ["## Highlights", ""]
+
+    for h in all_highlights:
+        text = h["text"].strip()
+        if text:
+            # For multi-line quotes, add > prefix to each line to keep them in the blockquote
+            text_lines = text.split("\n")
+            quoted_lines = [f"> {line}" for line in text_lines]
+            lines.append("\n".join(quoted_lines))
+            lines.append("")
+
+    highlights_md = "\n".join(lines)
+
+    # Update the Obsidian note
+    if update_obsidian_highlights_section(note_path, highlights_md):
+        print(f"Exported {len(all_highlights)} highlights to {note_path}")
+        return True
+    else:
+        print(f"Failed to update highlights in {note_path}")
+        return False
+
+
+def export_all_highlights_to_obsidian(directory: str = ".") -> tuple[int, int]:
+    """
+    Export highlights for all processed books to Obsidian.
+
+    Args:
+        directory: Directory containing book data folders
+
+    Returns:
+        Tuple of (exported_count, skipped_count)
+    """
+    import json
+
+    exported = 0
+    skipped = 0
+
+    # Find all _data folders with highlights.json
+    data_folders = [
+        f
+        for f in os.listdir(directory)
+        if f.endswith("_data") and os.path.isdir(os.path.join(directory, f))
+    ]
+
+    if not data_folders:
+        print("No processed books found (no *_data folders)")
+        return 0, 0
+
+    books_with_highlights = []
+    for folder in data_folders:
+        highlights_path = os.path.join(directory, folder, "highlights.json")
+        if os.path.exists(highlights_path):
+            # Check if highlights file has content
+            try:
+                with open(highlights_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if data:  # Has some highlights
+                        books_with_highlights.append(folder)
+            except Exception:
+                pass
+
+    if not books_with_highlights:
+        print("No books with highlights found")
+        return 0, 0
+
+    print(f"Found {len(books_with_highlights)} book(s) with highlights")
+
+    for folder in sorted(books_with_highlights):
+        folder_path = os.path.join(directory, folder)
+        print(f"\nExporting highlights: {folder}")
+
+        try:
+            if export_highlights_to_obsidian(folder_path):
+                exported += 1
+            else:
+                skipped += 1
+        except Exception as e:
+            print(f"Error exporting {folder}: {e}")
+            skipped += 1
+
+    return exported, skipped
+
+
 def export_all_to_obsidian(directory: str = ".") -> tuple[int, int]:
     """
     Export all processed books to Obsidian.
@@ -644,6 +878,10 @@ if __name__ == "__main__":
         print("  Process all EPUBs:  python reader3.py --process-all")
         print("  Export to Obsidian: python reader3.py --obsidian <book_data_folder>")
         print("  Export all to Obsidian: python reader3.py --obsidian-all")
+        print(
+            "  Export highlights:  python reader3.py --export-highlights <book_data_folder>"
+        )
+        print("  Export all highlights: python reader3.py --export-highlights-all")
         sys.exit(1)
 
     # Handle --process-all flag
@@ -659,6 +897,28 @@ if __name__ == "__main__":
         print(f"\n{'=' * 60}")
         print(f"Summary: {exported} exported, {skipped} skipped")
         sys.exit(0)
+
+    # Handle --export-highlights-all flag
+    if sys.argv[1] == "--export-highlights-all":
+        exported, skipped = export_all_highlights_to_obsidian()
+        print(f"\n{'=' * 60}")
+        print(f"Summary: {exported} exported, {skipped} skipped")
+        sys.exit(0)
+
+    # Handle --export-highlights flag
+    if sys.argv[1] == "--export-highlights":
+        if len(sys.argv) < 3:
+            print("Error: Please specify the book data folder")
+            print("Usage: python reader3.py --export-highlights <book_data_folder>")
+            sys.exit(1)
+
+        book_folder = sys.argv[2]
+        if not os.path.isdir(book_folder):
+            print(f"Error: {book_folder} is not a directory")
+            sys.exit(1)
+
+        success = export_highlights_to_obsidian(book_folder)
+        sys.exit(0 if success else 1)
 
     # Handle --obsidian flag
     if sys.argv[1] == "--obsidian":
