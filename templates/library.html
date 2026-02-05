@@ -31,9 +31,9 @@
 
         <div class="book-grid">
             {% for book in books %}
-            <div class="book-card" onclick="window.location.href='/read/{{ book.id }}/0'">
+            <div class="book-card" onclick="window.location.href='/read/{{ book.id | urlencode }}/0'">
                 <div class="book-cover">
-                    <img src="/cover/{{ book.id }}" 
+                    <img src="/cover/{{ book.id | urlencode }}" 
                          alt="{{ book.title }}" 
                          onerror="this.style.display='none'; this.parentElement.innerHTML='<div class=\'book-cover-placeholder\'>{{ book.title }}</div>'">
                 </div>
@@ -43,7 +43,7 @@
                         {{ book.author }}<br>
                         {{ book.chapters }} sections
                     </div>
-                    <a href="/read/{{ book.id }}/0" class="btn" onclick="event.stopPropagation()">Read Book</a>
+                    <a href="/read/{{ book.id | urlencode }}/0" class="btn" onclick="event.stopPropagation()">Read Book</a>
                 </div>
             </div>
             {% endfor %}

@@ -114,7 +114,7 @@
 
             <div class="chapter-nav">
                 {% if prev_idx is not none %}
-                    <a href="/read/{{ book_id }}/{{ prev_idx }}" class="nav-btn">← Previous</a>
+                    <a href="/read/{{ book_id | urlencode }}/{{ prev_idx }}" class="nav-btn">← Previous</a>
                 {% else %}
                     <span class="nav-btn disabled">← Previous</span>
                 {% endif %}
@@ -124,7 +124,7 @@
                 </span>
 
                 {% if next_idx is not none %}
-                    <a href="/read/{{ book_id }}/{{ next_idx }}" class="nav-btn">Next →</a>
+                    <a href="/read/{{ book_id | urlencode }}/{{ next_idx }}" class="nav-btn">Next →</a>
                 {% else %}
                     <span class="nav-btn disabled">Next →</span>
                 {% endif %}
@@ -151,7 +151,7 @@
             const idx = spineMap[cleanFile];
 
             if (idx !== undefined) {
-                let url = "/read/{{ book_id }}/" + idx;
+                let url = "/read/{{ book_id | urlencode }}/" + idx;
                 // If there was an anchor, we could try to scroll to it,
                 // but simple page loads often lose anchor position without extra JS.
                 // Let's just go to the page.
@@ -401,7 +401,7 @@
 
         // Backend communication functions
         async function saveHighlight(highlightId, text, startOffset) {
-            const bookId = '{{ book_id }}';
+            const bookId = '{{ book_id | safe }}';
             const chapterIndex = {{ chapter_index }};
             
             console.log(`Saving highlight to book ${bookId}, chapter ${chapterIndex}`);
@@ -435,7 +435,7 @@
         }
 
         async function deleteHighlight(highlightId) {
-            const bookId = '{{ book_id }}';
+            const bookId = '{{ book_id | safe }}';
             const chapterIndex = {{ chapter_index }};
             
             console.log(`Deleting highlight ${highlightId} from book ${bookId}, chapter ${chapterIndex}`);
@@ -462,13 +462,13 @@
         }
 
         async function loadChapterHighlights() {
-            const bookId = '{{ book_id }}';
+            const bookId = '{{ book_id | safe }}';
             const chapterIndex = {{ chapter_index }};
             
             console.log(`Loading highlights for book ${bookId}, chapter ${chapterIndex}`);
             
             try {
-                const response = await fetch(`/api/highlights/${bookId}/${chapterIndex}`);
+                const response = await fetch(`/api/highlights/${encodeURIComponent(bookId)}/${chapterIndex}`);
                 if (response.ok) {
                     const data = await response.json();
                     const highlights = data.highlights || [];
