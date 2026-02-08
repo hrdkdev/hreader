@@ -12,3 +12,10 @@ wheels/
 # Custom
 *_data/
 *.epub
+# Existing rule
+*.epub
+
+# Add these new rules
+*.pdf
+*.sdr/
+
