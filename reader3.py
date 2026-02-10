@@ -108,6 +108,12 @@ def parse_toc_recursive(toc_list, depth=0) -> List[TOCEntry]:
     """
     result = []
 
+    # Handle case where toc_list is a single Link object instead of a list
+    if isinstance(toc_list, epub.Link):
+        toc_list = [toc_list]
+    elif not isinstance(toc_list, (list, tuple)):
+        return result
+
     for item in toc_list:
         # ebooklib TOC items are either `Link` objects or tuples (Section, [Children])
         if isinstance(item, tuple):
