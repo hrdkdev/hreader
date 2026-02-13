@@ -118,8 +118,11 @@ def parse_toc_recursive(toc_list, depth=0) -> List[TOCEntry]:
         # ebooklib TOC items are either `Link` objects or tuples (Section, [Children])
         if isinstance(item, tuple):
             section, children = item
+            # Skip entries with empty href
+            if not section.href:
+                continue
             entry = TOCEntry(
-                title=section.title,
+                title=section.title or "",
                 href=section.href,
                 file_href=section.href.split("#")[0],
                 anchor=section.href.split("#")[1] if "#" in section.href else "",
@@ -127,8 +130,11 @@ def parse_toc_recursive(toc_list, depth=0) -> List[TOCEntry]:
             )
             result.append(entry)
         elif isinstance(item, epub.Link):
+            # Skip entries with empty href
+            if not item.href:
+                continue
             entry = TOCEntry(
-                title=item.title,
+                title=item.title or "",
                 href=item.href,
                 file_href=item.href.split("#")[0],
                 anchor=item.href.split("#")[1] if "#" in item.href else "",
@@ -136,8 +142,11 @@ def parse_toc_recursive(toc_list, depth=0) -> List[TOCEntry]:
             result.append(entry)
         # Note: ebooklib sometimes returns direct Section objects without children
         elif isinstance(item, epub.Section):
+            # Skip entries with empty href
+            if not item.href:
+                continue
             entry = TOCEntry(
-                title=item.title,
+                title=item.title or "",
                 href=item.href,
                 file_href=item.href.split("#")[0],
                 anchor=item.href.split("#")[1] if "#" in item.href else "",
