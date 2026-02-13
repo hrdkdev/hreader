@@ -1182,7 +1182,7 @@
                 
                 // Populate chapter options
                 chapterSelect.innerHTML = this.chapters.map((ch, idx) => 
-                    `<option value="${idx}">${ch.filename.replace('.m4b', '').replace('.M4B', '')}</option>`
+                    `<option value="${idx}">${ch.filename.replace('.m4b', '').replace('.M4B', '').replace('.mp3', '').replace('.MP3', '')}</option>`
                 ).join('');
                 
                 // Show chapter selector

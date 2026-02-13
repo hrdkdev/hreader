@@ -217,17 +217,21 @@ def find_audiobook_for_book(book_id: str, book: Optional[Book] = None) -> Option
                         break
 
                 if base_match or title_match or key_word_match:
-                    # Check if this folder contains .m4b files
-                    m4b_files = sorted(
-                        [f for f in os.listdir(item_path) if f.lower().endswith(".m4b")]
+                    # Check if this folder contains .m4b or .mp3 files
+                    audio_files = sorted(
+                        [
+                            f
+                            for f in os.listdir(item_path)
+                            if f.lower().endswith((".m4b", ".mp3"))
+                        ]
                     )
-                    if m4b_files:
+                    if audio_files:
                         return item_path
     except Exception as e:
         print(f"Error searching audiobook folders: {e}")
 
-    # Try exact file match (single .m4b file in root)
-    for ext in [".m4b", ".M4B"]:
+    # Try exact file match (single .m4b or .mp3 file in root, prioritize .m4b)
+    for ext in [".m4b", ".M4B", ".mp3", ".MP3"]:
         audiobook_path = os.path.join(AUDIOBOOKS_DIR, base_name + ext)
         if os.path.exists(audiobook_path):
             return audiobook_path
@@ -236,7 +240,7 @@ def find_audiobook_for_book(book_id: str, book: Optional[Book] = None) -> Option
     try:
         for filename in os.listdir(AUDIOBOOKS_DIR):
             filepath = os.path.join(AUDIOBOOKS_DIR, filename)
-            if os.path.isfile(filepath) and filename.lower().endswith(".m4b"):
+            if os.path.isfile(filepath) and filename.lower().endswith((".m4b", ".mp3")):
                 name_without_ext = os.path.splitext(filename)[0]
                 if name_without_ext.lower() == base_name.lower():
                     return filepath
@@ -286,18 +290,22 @@ def find_audiobook_for_book(book_id: str, book: Optional[Book] = None) -> Option
                         and (title_lower in item_lower or item_lower in title_lower)
                     )
                 ):
-                    # Check if this folder contains .m4b files
-                    m4b_files = sorted(
-                        [f for f in os.listdir(item_path) if f.lower().endswith(".m4b")]
+                    # Check if this folder contains .m4b or .mp3 files
+                    audio_files = sorted(
+                        [
+                            f
+                            for f in os.listdir(item_path)
+                            if f.lower().endswith((".m4b", ".mp3"))
+                        ]
                     )
-                    if m4b_files:
+                    if audio_files:
                         # Return path to the folder (we'll handle multiple files in streaming)
                         return item_path
     except Exception as e:
         print(f"Error searching audiobook folders: {e}")
 
-    # Try exact file match (single .m4b file in root)
-    for ext in [".m4b", ".M4B"]:
+    # Try exact file match (single .m4b or .mp3 file in root, prioritize .m4b)
+    for ext in [".m4b", ".M4B", ".mp3", ".MP3"]:
         audiobook_path = os.path.join(AUDIOBOOKS_DIR, base_name + ext)
         if os.path.exists(audiobook_path):
             return audiobook_path
@@ -306,7 +314,7 @@ def find_audiobook_for_book(book_id: str, book: Optional[Book] = None) -> Option
     try:
         for filename in os.listdir(AUDIOBOOKS_DIR):
             filepath = os.path.join(AUDIOBOOKS_DIR, filename)
-            if os.path.isfile(filepath) and filename.lower().endswith(".m4b"):
+            if os.path.isfile(filepath) and filename.lower().endswith((".m4b", ".mp3")):
                 name_without_ext = os.path.splitext(filename)[0]
                 if name_without_ext.lower() == base_name.lower():
                     return filepath
@@ -318,14 +326,16 @@ def find_audiobook_for_book(book_id: str, book: Optional[Book] = None) -> Option
 
 def get_audiobook_files(audiobook_path: str) -> List[str]:
     """
-    Get list of .m4b files for an audiobook.
-    If audiobook_path is a directory, returns sorted list of all .m4b files inside.
+    Get list of .m4b and .mp3 files for an audiobook.
+    If audiobook_path is a directory, returns sorted list of all audio files inside.
+    Prioritizes .m4b files over .mp3 files.
     If audiobook_path is a file, returns a list with just that file.
     """
     if os.path.isfile(audiobook_path):
         return [audiobook_path]
 
     if os.path.isdir(audiobook_path):
+        # Get .m4b files first (priority), then .mp3 files
         m4b_files = sorted(
             [
                 os.path.join(audiobook_path, f)
@@ -333,7 +343,15 @@ def get_audiobook_files(audiobook_path: str) -> List[str]:
                 if f.lower().endswith(".m4b")
             ]
         )
-        return m4b_files
+        mp3_files = sorted(
+            [
+                os.path.join(audiobook_path, f)
+                for f in os.listdir(audiobook_path)
+                if f.lower().endswith(".mp3")
+            ]
+        )
+        # Return .m4b files first, then .mp3 files
+        return m4b_files + mp3_files
 
     return []
 
@@ -695,6 +713,12 @@ async def _stream_audio_file(file_path: str, request: Request):
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="Audio file not found")
 
+    # Determine content type based on file extension
+    if file_path.lower().endswith(".mp3"):
+        content_type = "audio/mpeg"
+    else:
+        content_type = "audio/mp4"  # Default for .m4b files
+
     file_size = os.path.getsize(file_path)
 
     # Parse Range header
@@ -737,9 +761,9 @@ async def _stream_audio_file(file_path: str, request: Request):
                     "Content-Range": f"bytes {start}-{end}/{file_size}",
                     "Accept-Ranges": "bytes",
                     "Content-Length": str(content_length),
-                    "Content-Type": "audio/mp4",
+                    "Content-Type": content_type,
                 },
-                media_type="audio/mp4",
+                media_type=content_type,
             )
         except Exception as e:
             print(f"Error parsing range header: {e}")
@@ -760,9 +784,9 @@ async def _stream_audio_file(file_path: str, request: Request):
         headers={
             "Accept-Ranges": "bytes",
             "Content-Length": str(file_size),
-            "Content-Type": "audio/mp4",
+            "Content-Type": content_type,
         },
-        media_type="audio/mp4",
+        media_type=content_type,
     )
 
 
