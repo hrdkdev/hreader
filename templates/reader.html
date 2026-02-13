@@ -1105,6 +1105,51 @@
         });
 
         // ============================================
+        // READING PROGRESS AUTO-SAVE
+        // ============================================
+        
+        const readingProgress = {
+            bookId: '{{ book_id | safe }}',
+            chapterIndex: {{ chapter_index }},
+            saveInterval: null,
+            
+            init: function() {
+                // Save progress immediately when opening a chapter
+                this.saveProgress();
+                
+                // Also save every 10 seconds while reading
+                this.saveInterval = setInterval(() => {
+                    this.saveProgress();
+                }, 10000);
+                
+                // Save when navigating away
+                window.addEventListener('beforeunload', () => this.saveProgress());
+                
+                console.log('Reading progress tracking initialized for chapter', this.chapterIndex);
+            },
+            
+            async saveProgress() {
+                try {
+                    await fetch('/api/progress', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            book_id: this.bookId,
+                            chapter_index: this.chapterIndex
+                        })
+                    });
+                } catch (error) {
+                    console.error('Error saving reading progress:', error);
+                }
+            }
+        };
+        
+        // Initialize reading progress when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            readingProgress.init();
+        });
+
+        // ============================================
         // AUDIO PLAYER FUNCTIONALITY
         // ============================================
         

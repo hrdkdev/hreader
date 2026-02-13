@@ -33,7 +33,7 @@
 
         <div class="book-grid">
             {% for book in books %}
-            <div class="book-card" onclick="window.location.href='/read/{{ book.id | urlencode }}/0'">
+            <div class="book-card" onclick="window.location.href='/read/{{ book.id | urlencode }}'">
                 <div class="book-cover">
                     <img src="/cover/{{ book.id | urlencode }}" 
                          alt="{{ book.title }}" 
@@ -49,7 +49,7 @@
                         {{ book.author }}<br>
                         {{ book.chapters }} sections
                     </div>
-                    <a href="/read/{{ book.id | urlencode }}/0" class="btn" onclick="event.stopPropagation()">Read Book</a>
+                    <a href="/read/{{ book.id | urlencode }}" class="btn" onclick="event.stopPropagation()">Read Book</a>
                 </div>
             </div>
             {% endfor %}

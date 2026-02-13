@@ -10,6 +10,7 @@ from fastapi.responses import (
     FileResponse,
     HTMLResponse,
     JSONResponse,
+    RedirectResponse,
     StreamingResponse,
 )
 from fastapi.staticfiles import StaticFiles
@@ -91,6 +92,40 @@ def save_highlights(book_id: str, highlights: Dict[str, List[Dict[str, Any]]]) -
         return True
     except Exception as e:
         print(f"Error saving highlights for {book_id}: {e}")
+        return False
+
+
+# --- Reading Progress Functions ---
+
+
+def load_reading_progress(book_id: str) -> Dict[str, Any]:
+    """Load reading progress for a book from JSON file."""
+    progress_file = os.path.join(BOOKS_DIR, book_id, "reading_progress.json")
+    if not os.path.exists(progress_file):
+        return {"current_chapter_index": 0}
+
+    try:
+        with open(progress_file, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Error loading reading progress for {book_id}: {e}")
+        return {"current_chapter_index": 0}
+
+
+def save_reading_progress(book_id: str, chapter_index: int) -> bool:
+    """Save reading progress for a book to JSON file."""
+    progress_file = os.path.join(BOOKS_DIR, book_id, "reading_progress.json")
+    try:
+        data = {
+            "current_chapter_index": chapter_index,
+            "last_updated": datetime.now().isoformat(),
+            "book_id": book_id,
+        }
+        with open(progress_file, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+        return True
+    except Exception as e:
+        print(f"Error saving reading progress for {book_id}: {e}")
         return False
 
 
@@ -420,9 +455,23 @@ async def library_view(request: Request):
 
 
 @app.get("/read/{book_id}", response_class=HTMLResponse)
-async def redirect_to_first_chapter(request: Request, book_id: str):
-    """Helper to just go to chapter 0."""
-    return await read_chapter(request=request, book_id=book_id, chapter_index=0)
+async def redirect_to_saved_chapter(request: Request, book_id: str):
+    """Redirect to the last read chapter, or chapter 0 if no progress saved."""
+    safe_book_id = os.path.basename(book_id)
+
+    # Load saved progress
+    progress = load_reading_progress(safe_book_id)
+    chapter_index = progress.get("current_chapter_index", 0)
+
+    # Validate chapter index against book spine length
+    book = load_book_cached(safe_book_id)
+    if book:
+        chapter_index = max(0, min(chapter_index, len(book.spine) - 1))
+    else:
+        chapter_index = 0
+
+    # Redirect to the saved chapter
+    return RedirectResponse(url=f"/read/{book_id}/{chapter_index}", status_code=302)
 
 
 @app.get("/read/{book_id}/{chapter_index}", response_class=HTMLResponse)
@@ -580,6 +629,43 @@ async def remove_highlight(request_data: RemoveHighlightRequest):
         raise HTTPException(
             status_code=500, detail=f"Error removing highlight: {str(e)}"
         )
+
+
+# --- Reading Progress API Endpoints ---
+
+
+class ReadingProgressRequest(BaseModel):
+    book_id: str
+    chapter_index: int
+
+
+@app.get("/api/progress/{book_id}")
+async def get_reading_progress(book_id: str):
+    """Get saved reading progress for a book."""
+    safe_book_id = os.path.basename(book_id)
+    progress = load_reading_progress(safe_book_id)
+    return progress
+
+
+@app.post("/api/progress")
+async def save_progress_endpoint(request_data: ReadingProgressRequest):
+    """Save reading progress for a book."""
+    safe_book_id = os.path.basename(request_data.book_id)
+
+    # Validate chapter index against book spine length
+    book = load_book_cached(safe_book_id)
+    if book:
+        # Clamp chapter index to valid range
+        chapter_index = max(0, min(request_data.chapter_index, len(book.spine) - 1))
+    else:
+        chapter_index = request_data.chapter_index
+
+    success = save_reading_progress(safe_book_id, chapter_index)
+
+    if success:
+        return {"status": "success", "chapter_index": chapter_index}
+    else:
+        raise HTTPException(status_code=500, detail="Failed to save reading progress")
 
 
 # --- Audiobook API Endpoints ---
