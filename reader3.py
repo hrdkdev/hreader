@@ -74,6 +74,7 @@ class Book:
     processed_at: str
     version: str = "3.0"
     cover_image: Optional[str] = None  # Relative path to cover image
+    audiobook_path: Optional[str] = None  # Path to associated audiobook (.m4b)
 
 
 # --- Utilities ---

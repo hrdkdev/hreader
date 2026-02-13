@@ -1,0 +1,5 @@
+{
+  "_comment": "Map book folder names (e.g., 'BookTitle_data') or book titles to audiobook filenames in the audiobooks/ directory. The system will first check this mapping, then fall back to automatic filename matching.",
+  "_example_folder": "MyBook_data",
+  "_example_audiobook": "MyBook.m4b"
+}

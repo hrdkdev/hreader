@@ -1,11 +1,17 @@
 import json
 import os
 import pickle
+from datetime import datetime
 from functools import lru_cache
 from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.responses import (
+    FileResponse,
+    HTMLResponse,
+    JSONResponse,
+    StreamingResponse,
+)
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
@@ -39,6 +45,8 @@ templates = Jinja2Templates(directory="templates")
 
 # Where are the book folders located?
 BOOKS_DIR = "."
+AUDIOBOOKS_DIR = "audiobooks"
+AUDIOBOOK_MAPPING_FILE = "audiobook_mapping.json"
 
 
 @lru_cache(maxsize=10)
@@ -83,6 +91,287 @@ def save_highlights(book_id: str, highlights: Dict[str, List[Dict[str, Any]]]) -
         return True
     except Exception as e:
         print(f"Error saving highlights for {book_id}: {e}")
+        return False
+
+
+# --- Audiobook Functions ---
+
+
+def load_audiobook_mapping() -> Dict[str, str]:
+    """Load the audiobook mapping configuration file."""
+    if not os.path.exists(AUDIOBOOK_MAPPING_FILE):
+        return {}
+    try:
+        with open(AUDIOBOOK_MAPPING_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            # Filter out comment keys (starting with _)
+            return {k: v for k, v in data.items() if not k.startswith("_")}
+    except Exception as e:
+        print(f"Error loading audiobook mapping: {e}")
+        return {}
+
+
+def normalize_for_matching(name: str) -> str:
+    """Normalize a string for fuzzy matching by removing special characters."""
+    import re
+
+    # Replace common separators and special chars with space
+    normalized = re.sub(r"[_\-—–:;,\.\'\"\(\)\[\]]", " ", name)
+    # Collapse multiple spaces
+    normalized = re.sub(r"\s+", " ", normalized)
+    return normalized.lower().strip()
+
+
+def find_audiobook_for_book(book_id: str, book: Optional[Book] = None) -> Optional[str]:
+    """
+    Find the audiobook file for a given book.
+
+    Search order:
+    1. Check audiobook_mapping.json for explicit mapping (by book_id or title)
+    2. Look for a folder matching the book name containing .m4b files
+    3. Fall back to filename matching in audiobooks/ directory
+
+    Returns the full path to the .m4b file (or folder with .m4b files), or None if not found.
+    """
+    if not os.path.exists(AUDIOBOOKS_DIR):
+        return None
+
+    # Load mapping
+    mapping = load_audiobook_mapping()
+
+    # Try mapping by book_id (folder name)
+    if book_id in mapping:
+        audiobook_path = os.path.join(AUDIOBOOKS_DIR, mapping[book_id])
+        if os.path.exists(audiobook_path):
+            return audiobook_path
+
+    # Try mapping by book title (if book is loaded)
+    if book and book.metadata.title in mapping:
+        audiobook_path = os.path.join(AUDIOBOOKS_DIR, mapping[book.metadata.title])
+        if os.path.exists(audiobook_path):
+            return audiobook_path
+
+    # Fallback: filename/folder matching
+    # book_id is like "BookName_data", so we strip "_data" to get base name
+    base_name = book_id.replace("_data", "") if book_id.endswith("_data") else book_id
+
+    # Get book title if available
+    book_title = book.metadata.title if book else None
+
+    # Normalize names for matching
+    base_normalized = normalize_for_matching(base_name)
+    title_normalized = normalize_for_matching(book_title) if book_title else ""
+
+    # Try to find a matching folder containing .m4b files
+    try:
+        for item in os.listdir(AUDIOBOOKS_DIR):
+            item_path = os.path.join(AUDIOBOOKS_DIR, item)
+            if os.path.isdir(item_path):
+                item_normalized = normalize_for_matching(item)
+
+                # Check for fuzzy match using normalized strings
+                # Match if significant words overlap
+                base_words = set(base_normalized.split())
+                title_words = (
+                    set(title_normalized.split()) if title_normalized else set()
+                )
+                item_words = set(item_normalized.split())
+
+                # Remove common short words
+                stop_words = {
+                    "the",
+                    "a",
+                    "an",
+                    "of",
+                    "and",
+                    "or",
+                    "in",
+                    "on",
+                    "at",
+                    "to",
+                    "for",
+                }
+                base_words -= stop_words
+                title_words -= stop_words
+                item_words -= stop_words
+
+                # Check if there's significant overlap (at least 2 words or 50% match)
+                base_overlap = len(base_words & item_words)
+                title_overlap = len(title_words & item_words) if title_words else 0
+
+                base_match = base_overlap >= 2 or (
+                    base_overlap >= 1 and base_overlap >= len(base_words) * 0.5
+                )
+                title_match = title_overlap >= 2 or (
+                    title_overlap >= 1 and title_overlap >= len(title_words) * 0.5
+                )
+
+                # Also check if key identifying words match
+                # For example, "Behave" should match "Behave"
+                key_word_match = False
+                for word in base_words | title_words:
+                    if (
+                        len(word) >= 5 and word in item_words
+                    ):  # Match on significant words (5+ chars)
+                        key_word_match = True
+                        break
+
+                if base_match or title_match or key_word_match:
+                    # Check if this folder contains .m4b files
+                    m4b_files = sorted(
+                        [f for f in os.listdir(item_path) if f.lower().endswith(".m4b")]
+                    )
+                    if m4b_files:
+                        return item_path
+    except Exception as e:
+        print(f"Error searching audiobook folders: {e}")
+
+    # Try exact file match (single .m4b file in root)
+    for ext in [".m4b", ".M4B"]:
+        audiobook_path = os.path.join(AUDIOBOOKS_DIR, base_name + ext)
+        if os.path.exists(audiobook_path):
+            return audiobook_path
+
+    # Try case-insensitive file match
+    try:
+        for filename in os.listdir(AUDIOBOOKS_DIR):
+            filepath = os.path.join(AUDIOBOOKS_DIR, filename)
+            if os.path.isfile(filepath) and filename.lower().endswith(".m4b"):
+                name_without_ext = os.path.splitext(filename)[0]
+                if name_without_ext.lower() == base_name.lower():
+                    return filepath
+    except Exception:
+        pass
+
+    return None
+
+    # Load mapping
+    mapping = load_audiobook_mapping()
+
+    # Try mapping by book_id (folder name)
+    if book_id in mapping:
+        audiobook_path = os.path.join(AUDIOBOOKS_DIR, mapping[book_id])
+        if os.path.exists(audiobook_path):
+            return audiobook_path
+
+    # Try mapping by book title (if book is loaded)
+    if book and book.metadata.title in mapping:
+        audiobook_path = os.path.join(AUDIOBOOKS_DIR, mapping[book.metadata.title])
+        if os.path.exists(audiobook_path):
+            return audiobook_path
+
+    # Fallback: filename/folder matching
+    # book_id is like "BookName_data", so we strip "_data" to get base name
+    base_name = book_id.replace("_data", "") if book_id.endswith("_data") else book_id
+
+    # Get book title if available
+    book_title = book.metadata.title if book else None
+
+    # Try to find a matching folder containing .m4b files
+    try:
+        for item in os.listdir(AUDIOBOOKS_DIR):
+            item_path = os.path.join(AUDIOBOOKS_DIR, item)
+            if os.path.isdir(item_path):
+                # Check if folder name matches book name or title (case-insensitive, fuzzy)
+                item_lower = item.lower()
+                base_lower = base_name.lower()
+                title_lower = book_title.lower() if book_title else ""
+
+                # Check for partial match (folder contains book name or vice versa)
+                if (
+                    base_lower in item_lower
+                    or item_lower in base_lower
+                    or (
+                        title_lower
+                        and (title_lower in item_lower or item_lower in title_lower)
+                    )
+                ):
+                    # Check if this folder contains .m4b files
+                    m4b_files = sorted(
+                        [f for f in os.listdir(item_path) if f.lower().endswith(".m4b")]
+                    )
+                    if m4b_files:
+                        # Return path to the folder (we'll handle multiple files in streaming)
+                        return item_path
+    except Exception as e:
+        print(f"Error searching audiobook folders: {e}")
+
+    # Try exact file match (single .m4b file in root)
+    for ext in [".m4b", ".M4B"]:
+        audiobook_path = os.path.join(AUDIOBOOKS_DIR, base_name + ext)
+        if os.path.exists(audiobook_path):
+            return audiobook_path
+
+    # Try case-insensitive file match
+    try:
+        for filename in os.listdir(AUDIOBOOKS_DIR):
+            filepath = os.path.join(AUDIOBOOKS_DIR, filename)
+            if os.path.isfile(filepath) and filename.lower().endswith(".m4b"):
+                name_without_ext = os.path.splitext(filename)[0]
+                if name_without_ext.lower() == base_name.lower():
+                    return filepath
+    except Exception:
+        pass
+
+    return None
+
+
+def get_audiobook_files(audiobook_path: str) -> List[str]:
+    """
+    Get list of .m4b files for an audiobook.
+    If audiobook_path is a directory, returns sorted list of all .m4b files inside.
+    If audiobook_path is a file, returns a list with just that file.
+    """
+    if os.path.isfile(audiobook_path):
+        return [audiobook_path]
+
+    if os.path.isdir(audiobook_path):
+        m4b_files = sorted(
+            [
+                os.path.join(audiobook_path, f)
+                for f in os.listdir(audiobook_path)
+                if f.lower().endswith(".m4b")
+            ]
+        )
+        return m4b_files
+
+    return []
+
+
+def load_audiobook_position(book_id: str) -> Dict[str, Any]:
+    """Load saved audiobook playback position for a book."""
+    position_file = os.path.join(BOOKS_DIR, book_id, "audiobook_state.json")
+    if not os.path.exists(position_file):
+        return {"position": 0, "duration": 0, "chapter_index": 0}
+    try:
+        with open(position_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            # Ensure chapter_index exists for backwards compatibility
+            if "chapter_index" not in data:
+                data["chapter_index"] = 0
+            return data
+    except Exception as e:
+        print(f"Error loading audiobook position for {book_id}: {e}")
+        return {"position": 0, "duration": 0, "chapter_index": 0}
+
+
+def save_audiobook_position(
+    book_id: str, position: float, duration: float = 0, chapter_index: int = 0
+) -> bool:
+    """Save audiobook playback position for a book."""
+    position_file = os.path.join(BOOKS_DIR, book_id, "audiobook_state.json")
+    try:
+        data = {
+            "position": position,
+            "duration": duration,
+            "chapter_index": chapter_index,
+            "last_updated": datetime.now().isoformat(),
+        }
+        with open(position_file, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+        return True
+    except Exception as e:
+        print(f"Error saving audiobook position for {book_id}: {e}")
         return False
 
 
@@ -273,6 +562,208 @@ async def remove_highlight(request_data: RemoveHighlightRequest):
         raise HTTPException(
             status_code=500, detail=f"Error removing highlight: {str(e)}"
         )
+
+
+# --- Audiobook API Endpoints ---
+
+
+class AudioPositionRequest(BaseModel):
+    position: float
+    duration: float = 0
+    chapter_index: int = 0
+
+
+@app.get("/api/audio/{book_id}/metadata")
+async def get_audiobook_metadata(book_id: str):
+    """Check if audiobook exists for a book and return metadata."""
+    safe_book_id = os.path.basename(book_id)
+    book = load_book_cached(safe_book_id)
+
+    audiobook_path = find_audiobook_for_book(safe_book_id, book)
+
+    if not audiobook_path:
+        return {"available": False}
+
+    try:
+        audio_files = get_audiobook_files(audiobook_path)
+        if not audio_files:
+            return {"available": False}
+
+        # Calculate total size
+        total_size = sum(os.path.getsize(f) for f in audio_files)
+
+        # Build chapters list with file info
+        chapters = []
+        for i, filepath in enumerate(audio_files):
+            filename = os.path.basename(filepath)
+            chapters.append(
+                {"index": i, "filename": filename, "size": os.path.getsize(filepath)}
+            )
+
+        return {
+            "available": True,
+            "is_multi_file": len(audio_files) > 1,
+            "total_files": len(audio_files),
+            "total_size": total_size,
+            "chapters": chapters,
+        }
+    except Exception as e:
+        print(f"Error getting audiobook metadata: {e}")
+        return {"available": False}
+
+
+@app.get("/api/audio/{book_id}/position")
+async def get_audiobook_position(book_id: str):
+    """Get saved playback position for a book's audiobook."""
+    safe_book_id = os.path.basename(book_id)
+    position_data = load_audiobook_position(safe_book_id)
+    return position_data
+
+
+@app.post("/api/audio/{book_id}/position")
+async def save_audiobook_position_endpoint(
+    book_id: str, request_data: AudioPositionRequest
+):
+    """Save playback position for a book's audiobook."""
+    safe_book_id = os.path.basename(book_id)
+
+    success = save_audiobook_position(
+        safe_book_id,
+        request_data.position,
+        request_data.duration,
+        request_data.chapter_index,
+    )
+
+    if success:
+        return {"status": "success"}
+    else:
+        raise HTTPException(status_code=500, detail="Failed to save position")
+
+
+@app.get("/api/audio/{book_id}/{chapter_idx}")
+async def stream_audiobook_chapter(book_id: str, chapter_idx: int, request: Request):
+    """
+    Stream a specific audiobook chapter file.
+    For multi-file audiobooks, chapter_idx selects which file to play.
+    """
+    safe_book_id = os.path.basename(book_id)
+    book = load_book_cached(safe_book_id)
+
+    audiobook_path = find_audiobook_for_book(safe_book_id, book)
+
+    if not audiobook_path:
+        raise HTTPException(status_code=404, detail="Audiobook not found")
+
+    audio_files = get_audiobook_files(audiobook_path)
+
+    if not audio_files:
+        raise HTTPException(status_code=404, detail="No audio files found")
+
+    if chapter_idx < 0 or chapter_idx >= len(audio_files):
+        raise HTTPException(status_code=404, detail="Audio chapter not found")
+
+    file_path = audio_files[chapter_idx]
+    return await _stream_audio_file(file_path, request)
+
+
+@app.get("/api/audio/{book_id}")
+async def stream_audiobook(book_id: str, request: Request):
+    """
+    Stream audiobook file with HTTP Range support for seeking.
+    For multi-file audiobooks, this streams the first file.
+    Use /api/audio/{book_id}/{chapter_idx} for specific chapters.
+    """
+    safe_book_id = os.path.basename(book_id)
+    book = load_book_cached(safe_book_id)
+
+    audiobook_path = find_audiobook_for_book(safe_book_id, book)
+
+    if not audiobook_path:
+        raise HTTPException(status_code=404, detail="Audiobook not found")
+
+    audio_files = get_audiobook_files(audiobook_path)
+
+    if not audio_files:
+        raise HTTPException(status_code=404, detail="No audio files found")
+
+    # Stream the first file (for single-file audiobooks or default)
+    return await _stream_audio_file(audio_files[0], request)
+
+
+async def _stream_audio_file(file_path: str, request: Request):
+    """Helper to stream an audio file with HTTP Range support."""
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Audio file not found")
+
+    file_size = os.path.getsize(file_path)
+
+    # Parse Range header
+    range_header = request.headers.get("range")
+
+    if range_header:
+        # Parse byte range (e.g., "bytes=0-1023")
+        try:
+            range_spec = range_header.replace("bytes=", "")
+            if "-" in range_spec:
+                parts = range_spec.split("-")
+                start = int(parts[0]) if parts[0] else 0
+                end = int(parts[1]) if parts[1] else file_size - 1
+            else:
+                start = int(range_spec)
+                end = file_size - 1
+
+            # Clamp values
+            start = max(0, start)
+            end = min(end, file_size - 1)
+            content_length = end - start + 1
+
+            def iter_file():
+                with open(file_path, "rb") as f:
+                    f.seek(start)
+                    remaining = content_length
+                    chunk_size = 64 * 1024  # 64KB chunks
+                    while remaining > 0:
+                        read_size = min(chunk_size, remaining)
+                        data = f.read(read_size)
+                        if not data:
+                            break
+                        remaining -= len(data)
+                        yield data
+
+            return StreamingResponse(
+                iter_file(),
+                status_code=206,
+                headers={
+                    "Content-Range": f"bytes {start}-{end}/{file_size}",
+                    "Accept-Ranges": "bytes",
+                    "Content-Length": str(content_length),
+                    "Content-Type": "audio/mp4",
+                },
+                media_type="audio/mp4",
+            )
+        except Exception as e:
+            print(f"Error parsing range header: {e}")
+            # Fall through to full file response
+
+    # No range header - return full file
+    def iter_full_file():
+        with open(file_path, "rb") as f:
+            chunk_size = 64 * 1024
+            while True:
+                data = f.read(chunk_size)
+                if not data:
+                    break
+                yield data
+
+    return StreamingResponse(
+        iter_full_file(),
+        headers={
+            "Accept-Ranges": "bytes",
+            "Content-Length": str(file_size),
+            "Content-Type": "audio/mp4",
+        },
+        media_type="audio/mp4",
+    )
 
 
 if __name__ == "__main__":

@@ -47,6 +47,177 @@
         .highlight-btn:first-child { background-color: #ffeb3b; color: #333; }
         .highlight-btn:first-child:hover { background-color: #fdd835; }
 
+        /* Audio Player Styles */
+        #audio-player {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 60px;
+            background: #1a1a2e;
+            border-top: 1px solid #333;
+            display: none;
+            align-items: center;
+            padding: 0 20px;
+            gap: 15px;
+            font-family: -apple-system, sans-serif;
+            z-index: 1001;
+        }
+        #audio-player.visible { display: flex; }
+        
+        /* Adjust main content when player is visible */
+        body.has-audio-player #main { padding-bottom: 60px; }
+        
+        .audio-btn {
+            background: none;
+            border: none;
+            color: #fff;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+        }
+        .audio-btn:hover { background: rgba(255,255,255,0.1); }
+        .audio-btn svg { width: 24px; height: 24px; fill: currentColor; }
+        
+        .play-btn {
+            background: #fff;
+            color: #1a1a2e;
+            width: 40px;
+            height: 40px;
+        }
+        .play-btn:hover { background: #e0e0e0; }
+        
+        .audio-progress-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .audio-time {
+            color: #aaa;
+            font-size: 12px;
+            min-width: 45px;
+            text-align: center;
+        }
+        
+        .audio-progress-bar {
+            flex: 1;
+            height: 4px;
+            background: #444;
+            border-radius: 2px;
+            cursor: pointer;
+            position: relative;
+        }
+        .audio-progress-bar:hover { height: 6px; }
+        
+        .audio-progress-fill {
+            height: 100%;
+            background: #fff;
+            border-radius: 2px;
+            width: 0%;
+            position: relative;
+        }
+        .audio-progress-fill::after {
+            content: '';
+            position: absolute;
+            right: -6px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 12px;
+            height: 12px;
+            background: #fff;
+            border-radius: 50%;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .audio-progress-bar:hover .audio-progress-fill::after { opacity: 1; }
+        
+        .audio-speed-btn {
+            color: #aaa;
+            font-size: 12px;
+            padding: 4px 8px;
+            border: 1px solid #444;
+            border-radius: 4px;
+            background: none;
+            cursor: pointer;
+            min-width: 45px;
+        }
+        .audio-speed-btn:hover { border-color: #666; color: #fff; }
+        
+        .audio-chapter-container {
+            display: none;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .audio-chapter-select {
+            background: #2a2a3e;
+            color: #fff;
+            border: 1px solid #444;
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-size: 12px;
+            max-width: 200px;
+            cursor: pointer;
+        }
+        .audio-chapter-select:hover { border-color: #666; }
+        
+        .audio-chapter-info {
+            color: #aaa;
+            font-size: 11px;
+            min-width: 40px;
+        }
+        
+        .audio-nav-btn {
+            background: none;
+            border: none;
+            color: #aaa;
+            cursor: pointer;
+            padding: 6px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .audio-nav-btn:hover { color: #fff; background: rgba(255,255,255,0.1); }
+        .audio-nav-btn svg { width: 18px; height: 18px; fill: currentColor; }
+        
+        .audio-volume-container {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .audio-volume-slider {
+            width: 80px;
+            height: 4px;
+            -webkit-appearance: none;
+            background: #444;
+            border-radius: 2px;
+            cursor: pointer;
+        }
+        .audio-volume-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 12px;
+            height: 12px;
+            background: #fff;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        .audio-volume-slider::-moz-range-thumb {
+            width: 12px;
+            height: 12px;
+            background: #fff;
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+        }
+
     </style>
 </head>
 <body>
@@ -129,6 +300,54 @@
                     <span class="nav-btn disabled">Next →</span>
                 {% endif %}
             </div>
+        </div>
+    </div>
+
+    <!-- AUDIO PLAYER -->
+    <div id="audio-player">
+        <audio id="audio-element" preload="metadata"></audio>
+        
+        <!-- Previous Chapter Button -->
+        <button class="audio-nav-btn" id="prev-chapter-btn" title="Previous Chapter ([)">
+            <svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+        </button>
+        
+        <!-- Play/Pause Button -->
+        <button class="audio-btn play-btn" id="play-pause-btn" title="Play/Pause (Space)">
+            <svg id="play-icon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+            <svg id="pause-icon" viewBox="0 0 24 24" style="display:none"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+        </button>
+        
+        <!-- Next Chapter Button -->
+        <button class="audio-nav-btn" id="next-chapter-btn" title="Next Chapter (])">
+            <svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+        </button>
+        
+        <!-- Progress Section -->
+        <div class="audio-progress-container">
+            <span class="audio-time" id="current-time">0:00</span>
+            <div class="audio-progress-bar" id="progress-bar">
+                <div class="audio-progress-fill" id="progress-fill"></div>
+            </div>
+            <span class="audio-time" id="duration">0:00</span>
+        </div>
+        
+        <!-- Chapter Selector (shown for multi-file audiobooks) -->
+        <div class="audio-chapter-container" id="chapter-container">
+            <span class="audio-chapter-info" id="chapter-info">1/1</span>
+            <select class="audio-chapter-select" id="chapter-select" title="Select Chapter"></select>
+        </div>
+        
+        <!-- Speed Control -->
+        <button class="audio-speed-btn" id="speed-btn" title="Playback Speed">1x</button>
+        
+        <!-- Volume Control -->
+        <div class="audio-volume-container">
+            <button class="audio-btn" id="volume-btn" title="Mute/Unmute">
+                <svg id="volume-icon" viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+                <svg id="mute-icon" viewBox="0 0 24 24" style="display:none"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>
+            </button>
+            <input type="range" class="audio-volume-slider" id="volume-slider" min="0" max="1" step="0.1" value="1">
         </div>
     </div>
 
@@ -883,6 +1102,386 @@
             setTimeout(restoreHighlights, 500);
             setTimeout(restoreHighlights, 1000);
             setTimeout(restoreHighlights, 2000);
+        });
+
+        // ============================================
+        // AUDIO PLAYER FUNCTIONALITY
+        // ============================================
+        
+        const audioPlayer = {
+            element: null,
+            playerUI: null,
+            isPlaying: false,
+            saveInterval: null,
+            speedOptions: [0.5, 0.75, 1, 1.25, 1.5, 2],
+            currentSpeedIndex: 2, // Default 1x
+            bookId: null,
+            
+            // Multi-file audiobook support
+            isMultiFile: false,
+            chapters: [],
+            currentChapterIndex: 0,
+            
+            init: function() {
+                this.element = document.getElementById('audio-element');
+                this.playerUI = document.getElementById('audio-player');
+                this.bookId = '{{ book_id | safe }}';
+                
+                if (!this.element || !this.playerUI) return;
+                
+                // Check if audiobook is available for this book
+                this.checkAudiobookAvailability();
+            },
+            
+            async checkAudiobookAvailability() {
+                try {
+                    const response = await fetch(`/api/audio/${encodeURIComponent(this.bookId)}/metadata`);
+                    const data = await response.json();
+                    
+                    if (data.available) {
+                        console.log('Audiobook available:', data);
+                        this.isMultiFile = data.is_multi_file || false;
+                        this.chapters = data.chapters || [];
+                        this.setupPlayer();
+                    } else {
+                        console.log('No audiobook available for this book');
+                    }
+                } catch (error) {
+                    console.error('Error checking audiobook availability:', error);
+                }
+            },
+            
+            async setupPlayer() {
+                // Show player UI
+                this.playerUI.classList.add('visible');
+                document.body.classList.add('has-audio-player');
+                
+                // Setup chapter selector if multi-file
+                if (this.isMultiFile && this.chapters.length > 1) {
+                    this.setupChapterSelector();
+                }
+                
+                // Setup event listeners
+                this.setupEventListeners();
+                
+                // Load saved position (includes chapter index for multi-file)
+                await this.loadSavedPosition();
+                
+                // Load the current chapter audio
+                this.loadChapter(this.currentChapterIndex);
+                
+                // Start auto-save interval
+                this.startAutoSave();
+            },
+            
+            setupChapterSelector() {
+                const chapterSelect = document.getElementById('chapter-select');
+                const chapterContainer = document.getElementById('chapter-container');
+                
+                if (!chapterSelect || !chapterContainer) return;
+                
+                // Populate chapter options
+                chapterSelect.innerHTML = this.chapters.map((ch, idx) => 
+                    `<option value="${idx}">${ch.filename.replace('.m4b', '').replace('.M4B', '')}</option>`
+                ).join('');
+                
+                // Show chapter selector
+                chapterContainer.style.display = 'flex';
+                
+                // Handle chapter change
+                chapterSelect.addEventListener('change', (e) => {
+                    const wasPlaying = this.isPlaying;
+                    this.loadChapter(parseInt(e.target.value));
+                    if (wasPlaying) {
+                        this.element.play();
+                    }
+                });
+            },
+            
+            loadChapter(index) {
+                if (index < 0 || index >= this.chapters.length) {
+                    if (!this.isMultiFile) {
+                        // Single file - just load it
+                        this.element.src = `/api/audio/${encodeURIComponent(this.bookId)}`;
+                        return;
+                    }
+                    return;
+                }
+                
+                this.currentChapterIndex = index;
+                
+                if (this.isMultiFile) {
+                    this.element.src = `/api/audio/${encodeURIComponent(this.bookId)}/${index}`;
+                    
+                    // Update chapter selector
+                    const chapterSelect = document.getElementById('chapter-select');
+                    if (chapterSelect) {
+                        chapterSelect.value = index;
+                    }
+                    
+                    // Update chapter display
+                    const chapterInfo = document.getElementById('chapter-info');
+                    if (chapterInfo) {
+                        chapterInfo.textContent = `${index + 1}/${this.chapters.length}`;
+                    }
+                } else {
+                    this.element.src = `/api/audio/${encodeURIComponent(this.bookId)}`;
+                }
+            },
+            
+            nextChapter() {
+                if (this.currentChapterIndex < this.chapters.length - 1) {
+                    const wasPlaying = this.isPlaying;
+                    this.loadChapter(this.currentChapterIndex + 1);
+                    if (wasPlaying) {
+                        this.element.play();
+                    }
+                }
+            },
+            
+            prevChapter() {
+                // If more than 3 seconds into current chapter, restart it
+                if (this.element.currentTime > 3) {
+                    this.element.currentTime = 0;
+                } else if (this.currentChapterIndex > 0) {
+                    const wasPlaying = this.isPlaying;
+                    this.loadChapter(this.currentChapterIndex - 1);
+                    if (wasPlaying) {
+                        this.element.play();
+                    }
+                }
+            },
+            
+            setupEventListeners() {
+                const audio = this.element;
+                const playPauseBtn = document.getElementById('play-pause-btn');
+                const playIcon = document.getElementById('play-icon');
+                const pauseIcon = document.getElementById('pause-icon');
+                const progressBar = document.getElementById('progress-bar');
+                const progressFill = document.getElementById('progress-fill');
+                const currentTimeEl = document.getElementById('current-time');
+                const durationEl = document.getElementById('duration');
+                const speedBtn = document.getElementById('speed-btn');
+                const volumeBtn = document.getElementById('volume-btn');
+                const volumeSlider = document.getElementById('volume-slider');
+                const prevBtn = document.getElementById('prev-chapter-btn');
+                const nextBtn = document.getElementById('next-chapter-btn');
+                
+                // Play/Pause button
+                playPauseBtn.addEventListener('click', () => this.togglePlayPause());
+                
+                // Chapter navigation buttons
+                if (prevBtn) prevBtn.addEventListener('click', () => this.prevChapter());
+                if (nextBtn) nextBtn.addEventListener('click', () => this.nextChapter());
+                
+                // Audio events
+                audio.addEventListener('play', () => {
+                    this.isPlaying = true;
+                    playIcon.style.display = 'none';
+                    pauseIcon.style.display = 'block';
+                });
+                
+                audio.addEventListener('pause', () => {
+                    this.isPlaying = false;
+                    playIcon.style.display = 'block';
+                    pauseIcon.style.display = 'none';
+                });
+                
+                audio.addEventListener('timeupdate', () => {
+                    if (audio.duration) {
+                        const percent = (audio.currentTime / audio.duration) * 100;
+                        progressFill.style.width = percent + '%';
+                        currentTimeEl.textContent = this.formatTime(audio.currentTime);
+                    }
+                });
+                
+                audio.addEventListener('loadedmetadata', () => {
+                    durationEl.textContent = this.formatTime(audio.duration);
+                });
+                
+                audio.addEventListener('durationchange', () => {
+                    durationEl.textContent = this.formatTime(audio.duration);
+                });
+                
+                // Auto-advance to next chapter when current one ends
+                audio.addEventListener('ended', () => {
+                    if (this.isMultiFile && this.currentChapterIndex < this.chapters.length - 1) {
+                        this.loadChapter(this.currentChapterIndex + 1);
+                        audio.play();
+                    }
+                });
+                
+                // Progress bar click to seek
+                progressBar.addEventListener('click', (e) => {
+                    const rect = progressBar.getBoundingClientRect();
+                    const percent = (e.clientX - rect.left) / rect.width;
+                    audio.currentTime = percent * audio.duration;
+                });
+                
+                // Speed button
+                speedBtn.addEventListener('click', () => this.cycleSpeed());
+                
+                // Volume controls
+                volumeSlider.addEventListener('input', (e) => {
+                    audio.volume = e.target.value;
+                    this.updateVolumeIcon();
+                });
+                
+                volumeBtn.addEventListener('click', () => {
+                    audio.muted = !audio.muted;
+                    this.updateVolumeIcon();
+                });
+                
+                // Keyboard shortcuts
+                document.addEventListener('keydown', (e) => {
+                    // Only handle if not typing in an input
+                    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+                    
+                    switch(e.code) {
+                        case 'Space':
+                            e.preventDefault();
+                            this.togglePlayPause();
+                            break;
+                        case 'ArrowLeft':
+                            if (e.shiftKey) {
+                                audio.currentTime = Math.max(0, audio.currentTime - 30);
+                            } else {
+                                audio.currentTime = Math.max(0, audio.currentTime - 10);
+                            }
+                            break;
+                        case 'ArrowRight':
+                            if (e.shiftKey) {
+                                audio.currentTime = Math.min(audio.duration, audio.currentTime + 30);
+                            } else {
+                                audio.currentTime = Math.min(audio.duration, audio.currentTime + 10);
+                            }
+                            break;
+                        case 'ArrowUp':
+                            e.preventDefault();
+                            audio.volume = Math.min(1, audio.volume + 0.1);
+                            volumeSlider.value = audio.volume;
+                            this.updateVolumeIcon();
+                            break;
+                        case 'ArrowDown':
+                            e.preventDefault();
+                            audio.volume = Math.max(0, audio.volume - 0.1);
+                            volumeSlider.value = audio.volume;
+                            this.updateVolumeIcon();
+                            break;
+                        case 'BracketLeft':
+                            // [ key - previous chapter
+                            this.prevChapter();
+                            break;
+                        case 'BracketRight':
+                            // ] key - next chapter
+                            this.nextChapter();
+                            break;
+                    }
+                });
+            },
+            
+            togglePlayPause() {
+                if (this.isPlaying) {
+                    this.element.pause();
+                } else {
+                    this.element.play();
+                }
+            },
+            
+            cycleSpeed() {
+                this.currentSpeedIndex = (this.currentSpeedIndex + 1) % this.speedOptions.length;
+                const speed = this.speedOptions[this.currentSpeedIndex];
+                this.element.playbackRate = speed;
+                document.getElementById('speed-btn').textContent = speed + 'x';
+            },
+            
+            updateVolumeIcon() {
+                const volumeIcon = document.getElementById('volume-icon');
+                const muteIcon = document.getElementById('mute-icon');
+                
+                if (this.element.muted || this.element.volume === 0) {
+                    volumeIcon.style.display = 'none';
+                    muteIcon.style.display = 'block';
+                } else {
+                    volumeIcon.style.display = 'block';
+                    muteIcon.style.display = 'none';
+                }
+            },
+            
+            formatTime(seconds) {
+                if (!seconds || isNaN(seconds)) return '0:00';
+                
+                const hours = Math.floor(seconds / 3600);
+                const mins = Math.floor((seconds % 3600) / 60);
+                const secs = Math.floor(seconds % 60);
+                
+                if (hours > 0) {
+                    return `${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+                }
+                return `${mins}:${secs.toString().padStart(2, '0')}`;
+            },
+            
+            async loadSavedPosition() {
+                try {
+                    const response = await fetch(`/api/audio/${encodeURIComponent(this.bookId)}/position`);
+                    const data = await response.json();
+                    
+                    // Restore chapter index for multi-file audiobooks
+                    if (data.chapter_index !== undefined && this.isMultiFile) {
+                        this.currentChapterIndex = data.chapter_index;
+                    }
+                    
+                    // Position will be restored after audio loads
+                    if (data.position && data.position > 0) {
+                        this.pendingSeek = data.position;
+                        this.element.addEventListener('loadedmetadata', () => {
+                            if (this.pendingSeek) {
+                                this.element.currentTime = this.pendingSeek;
+                                console.log('Restored audio position:', this.formatTime(this.pendingSeek));
+                                this.pendingSeek = null;
+                            }
+                        }, { once: true });
+                    }
+                } catch (error) {
+                    console.error('Error loading saved position:', error);
+                }
+            },
+            
+            async savePosition() {
+                if (!this.element.currentTime && !this.isMultiFile) return;
+                
+                try {
+                    await fetch(`/api/audio/${encodeURIComponent(this.bookId)}/position`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            position: this.element.currentTime,
+                            duration: this.element.duration || 0,
+                            chapter_index: this.currentChapterIndex
+                        })
+                    });
+                } catch (error) {
+                    console.error('Error saving position:', error);
+                }
+            },
+            
+            startAutoSave() {
+                // Save position every 5 seconds while playing
+                this.saveInterval = setInterval(() => {
+                    if (this.isPlaying) {
+                        this.savePosition();
+                    }
+                }, 5000);
+                
+                // Also save on pause and when leaving page
+                this.element.addEventListener('pause', () => this.savePosition());
+                window.addEventListener('beforeunload', () => this.savePosition());
+            }
+        };
+        
+        // Initialize audio player when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            audioPlayer.init();
         });
     </script>
 </body>
