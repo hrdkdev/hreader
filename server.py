@@ -102,22 +102,41 @@ def load_reading_progress(book_id: str) -> Dict[str, Any]:
     """Load reading progress for a book from JSON file."""
     progress_file = os.path.join(BOOKS_DIR, book_id, "reading_progress.json")
     if not os.path.exists(progress_file):
-        return {"current_chapter_index": 0}
+        return {
+            "current_chapter_index": 0,
+            "scroll_position": 0,
+            "scroll_percentage": 0.0,
+        }
 
     try:
         with open(progress_file, "r", encoding="utf-8") as f:
-            return json.load(f)
+            data = json.load(f)
+            # Ensure scroll position fields exist with defaults
+            data.setdefault("scroll_position", 0)
+            data.setdefault("scroll_percentage", 0.0)
+            return data
     except Exception as e:
         print(f"Error loading reading progress for {book_id}: {e}")
-        return {"current_chapter_index": 0}
+        return {
+            "current_chapter_index": 0,
+            "scroll_position": 0,
+            "scroll_percentage": 0.0,
+        }
 
 
-def save_reading_progress(book_id: str, chapter_index: int) -> bool:
+def save_reading_progress(
+    book_id: str,
+    chapter_index: int,
+    scroll_position: int = 0,
+    scroll_percentage: float = 0.0,
+) -> bool:
     """Save reading progress for a book to JSON file."""
     progress_file = os.path.join(BOOKS_DIR, book_id, "reading_progress.json")
     try:
         data = {
             "current_chapter_index": chapter_index,
+            "scroll_position": scroll_position,
+            "scroll_percentage": scroll_percentage,
             "last_updated": datetime.now().isoformat(),
             "book_id": book_id,
         }
@@ -637,6 +656,8 @@ async def remove_highlight(request_data: RemoveHighlightRequest):
 class ReadingProgressRequest(BaseModel):
     book_id: str
     chapter_index: int
+    scroll_position: Optional[int] = 0
+    scroll_percentage: Optional[float] = 0.0
 
 
 @app.get("/api/progress/{book_id}")
@@ -660,7 +681,12 @@ async def save_progress_endpoint(request_data: ReadingProgressRequest):
     else:
         chapter_index = request_data.chapter_index
 
-    success = save_reading_progress(safe_book_id, chapter_index)
+    success = save_reading_progress(
+        safe_book_id,
+        chapter_index,
+        request_data.scroll_position or 0,
+        request_data.scroll_percentage or 0.0,
+    )
 
     if success:
         return {"status": "success", "chapter_index": chapter_index}

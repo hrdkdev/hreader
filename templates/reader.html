@@ -1111,9 +1111,16 @@
         const readingProgress = {
             bookId: '{{ book_id | safe }}',
             chapterIndex: {{ chapter_index }},
+            scrollContainer: null,
             saveInterval: null,
             
             init: function() {
+                // Get reference to scroll container
+                this.scrollContainer = document.querySelector('#main');
+                
+                // Restore scroll position when opening a chapter
+                this.restoreScrollPosition();
+                
                 // Save progress immediately when opening a chapter
                 this.saveProgress();
                 
@@ -1130,16 +1137,63 @@
             
             async saveProgress() {
                 try {
+                    // Get current scroll position
+                    const scrollTop = this.scrollContainer.scrollTop;
+                    const scrollHeight = this.scrollContainer.scrollHeight;
+                    const clientHeight = this.scrollContainer.clientHeight;
+                    
+                    // Calculate scroll percentage (0-1)
+                    const maxScroll = scrollHeight - clientHeight;
+                    const scrollPercentage = maxScroll > 0 ? scrollTop / maxScroll : 0;
+                    
                     await fetch('/api/progress', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             book_id: this.bookId,
-                            chapter_index: this.chapterIndex
+                            chapter_index: this.chapterIndex,
+                            scroll_position: Math.round(scrollTop),
+                            scroll_percentage: scrollPercentage
                         })
                     });
                 } catch (error) {
                     console.error('Error saving reading progress:', error);
+                }
+            },
+            
+            async restoreScrollPosition() {
+                try {
+                    const response = await fetch(`/api/progress/${this.bookId}`);
+                    const progress = await response.json();
+                    
+                    // Only restore if we're on the saved chapter
+                    if (progress.current_chapter_index === this.chapterIndex) {
+                        const scrollTop = progress.scroll_position || 0;
+                        const scrollPercentage = progress.scroll_percentage || 0;
+                        
+                        // Wait for content to render
+                        await new Promise(resolve => setTimeout(resolve, 50));
+                        
+                        // Try pixel-based first
+                        if (scrollTop > 0) {
+                            this.scrollContainer.scrollTo({
+                                top: scrollTop,
+                                behavior: 'smooth'
+                            });
+                        } else if (scrollPercentage > 0) {
+                            // Fallback to percentage-based
+                            const scrollHeight = this.scrollContainer.scrollHeight;
+                            const clientHeight = this.scrollContainer.clientHeight;
+                            const maxScroll = scrollHeight - clientHeight;
+                            this.scrollContainer.scrollTo({
+                                top: maxScroll * scrollPercentage,
+                                behavior: 'smooth'
+                            });
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error restoring scroll position:', error);
+                    // Fail silently - user starts at top
                 }
             }
         };
