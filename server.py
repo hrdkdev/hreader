@@ -904,6 +904,5 @@ async def _stream_audio_file(file_path: str, request: Request):
 
 if __name__ == "__main__":
     import uvicorn
-
     print("Starting server at http://127.0.0.1:8123")
-    uvicorn.run(app, host="127.0.0.1", port=8123)
+    uvicorn.run(app, host="0.0.0.0", port=8123)

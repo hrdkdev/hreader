@@ -26,6 +26,8 @@
             padding: 24px; 
             flex-shrink: 0;
             box-shadow: 2px 0 20px rgba(0, 0, 0, 0.3);
+            transition: transform 0.3s ease;
+            z-index: 100;
         }
         
         #sidebar::-webkit-scrollbar {
@@ -254,16 +256,18 @@
         
         /* Highlight Selection UI */
         .highlight-toolbar { 
-            position: absolute; 
+            position: fixed; 
             background: #2a2a3e; 
             border: 1px solid rgba(139, 92, 246, 0.3);
             border-radius: 8px; 
             padding: 10px 14px; 
             box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); 
-            z-index: 1000; 
+            z-index: 10000; 
             display: none; 
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
             backdrop-filter: blur(10px);
+            -webkit-user-select: none;
+            user-select: none;
         }
         
         .highlight-btn { 
@@ -511,9 +515,259 @@
             box-shadow: 0 2px 10px rgba(139, 92, 246, 0.6);
         }
 
+        /* Hamburger Menu Button */
+        #menu-toggle {
+            display: none;
+            position: fixed;
+            top: 16px;
+            left: 16px;
+            z-index: 101;
+            background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+            border: none;
+            color: white;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+            transition: all 0.3s ease;
+            padding: 0;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        #menu-toggle:hover {
+            background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+            box-shadow: 0 6px 16px rgba(139, 92, 246, 0.6);
+            transform: scale(1.05);
+        }
+        
+        #menu-toggle svg {
+            width: 24px;
+            height: 24px;
+            fill: currentColor;
+        }
+        
+        /* Sidebar Overlay for Mobile */
+        #sidebar-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 99;
+            backdrop-filter: blur(4px);
+        }
+
+        /* Book content typography for mobile */
+        .book-content {
+            -webkit-touch-callout: none; /* Disable callout (iOS) */
+        }
+        
+        /* Make sure book content allows selection but hides default menu */
+        .book-content * {
+            -webkit-user-select: text;
+            user-select: text;
+        }
+        
+        /* Mobile Responsive Styles */
+        @media (max-width: 768px) {
+            /* Hide sidebar by default on mobile */
+            #sidebar {
+                position: fixed;
+                top: 0;
+                left: 0;
+                bottom: 0;
+                width: 280px;
+                transform: translateX(-100%);
+                padding: 20px;
+                z-index: 100;
+            }
+            
+            #sidebar.open {
+                transform: translateX(0);
+            }
+            
+            #sidebar-overlay.visible {
+                display: block;
+            }
+            
+            /* Show hamburger menu */
+            #menu-toggle {
+                display: flex;
+            }
+            
+            /* Adjust main content */
+            #main {
+                width: 100%;
+            }
+            
+            .content-container {
+                max-width: 100%;
+                padding: 70px 20px 40px;
+                font-size: 1.1em;
+            }
+            
+            /* Adjust chapter navigation */
+            .chapter-nav {
+                flex-direction: column;
+                gap: 12px;
+                margin-top: 50px;
+                padding-top: 20px;
+            }
+            
+            .nav-btn {
+                width: 100%;
+                text-align: center;
+            }
+            
+            /* Adjust highlight toolbar positioning */
+            .highlight-toolbar {
+                padding: 8px 12px;
+                font-size: 13px;
+                /* Ensure toolbar is visible above browser UI */
+                z-index: 99999;
+            }
+            
+            .highlight-btn {
+                padding: 8px 12px;
+                font-size: 14px;
+                min-width: 60px;
+                /* Larger touch targets on mobile */
+                min-height: 36px;
+            }
+            
+            /* Audio player adjustments for mobile */
+            #audio-player {
+                height: auto;
+                padding: 12px 16px;
+                flex-wrap: wrap;
+                gap: 10px;
+            }
+            
+            body.has-audio-player #main {
+                padding-bottom: 140px;
+            }
+            
+            .audio-progress-container {
+                order: -1;
+                width: 100%;
+                flex: none;
+                margin-bottom: 4px;
+            }
+            
+            .audio-chapter-container {
+                width: 100%;
+                order: 4;
+                margin-top: 8px;
+            }
+            
+            .audio-chapter-select {
+                max-width: 100%;
+                width: 100%;
+            }
+            
+            .audio-volume-container {
+                order: 3;
+            }
+            
+            .audio-speed-btn {
+                order: 2;
+            }
+            
+            .play-btn {
+                width: 40px;
+                height: 40px;
+            }
+            
+            .audio-btn svg {
+                width: 20px;
+                height: 20px;
+            }
+            
+            .audio-nav-btn {
+                padding: 6px;
+            }
+            
+            .audio-nav-btn svg {
+                width: 18px;
+                height: 18px;
+            }
+            
+            /* TOC adjustments */
+            .toc-link {
+                font-size: 0.9em;
+                padding: 8px 10px;
+            }
+            
+            .nav-header {
+                font-size: 1em;
+            }
+            
+            /* Book content typography for mobile */
+            .book-content h1 { font-size: 1.6em; }
+            .book-content h2 { font-size: 1.35em; }
+            .book-content h3 { font-size: 1.15em; }
+        }
+        
+        /* Very small mobile devices */
+        @media (max-width: 480px) {
+            #menu-toggle {
+                width: 40px;
+                height: 40px;
+                top: 12px;
+                left: 12px;
+            }
+            
+            #sidebar {
+                width: 85vw;
+                max-width: 300px;
+            }
+            
+            .content-container {
+                padding: 60px 16px 30px;
+                font-size: 1.05em;
+            }
+            
+            .book-content h1 { font-size: 1.5em; }
+            .book-content h2 { font-size: 1.25em; }
+            .book-content h3 { font-size: 1.1em; }
+            
+            .highlight-toolbar {
+                left: 10px !important;
+                right: 10px;
+                width: auto;
+            }
+        }
+        
+        /* Tablet landscape */
+        @media (min-width: 769px) and (max-width: 1024px) {
+            #sidebar {
+                width: 280px;
+                padding: 20px;
+            }
+            
+            .content-container {
+                max-width: 650px;
+                padding: 60px 40px;
+            }
+        }
+
     </style>
 </head>
 <body>
+
+    <!-- Hamburger Menu Button -->
+    <button id="menu-toggle" aria-label="Toggle menu">
+        <svg viewBox="0 0 24 24">
+            <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/>
+        </svg>
+    </button>
+    
+    <!-- Sidebar Overlay -->
+    <div id="sidebar-overlay"></div>
 
     <!-- SIDEBAR -->
     <div id="sidebar">
@@ -645,6 +899,33 @@
     </div>
 
     <script>
+        // Mobile menu toggle functionality
+        (function() {
+            const menuToggle = document.getElementById('menu-toggle');
+            const sidebar = document.getElementById('sidebar');
+            const sidebarOverlay = document.getElementById('sidebar-overlay');
+            
+            if (menuToggle && sidebar && sidebarOverlay) {
+                menuToggle.addEventListener('click', function() {
+                    sidebar.classList.toggle('open');
+                    sidebarOverlay.classList.toggle('visible');
+                });
+                
+                sidebarOverlay.addEventListener('click', function() {
+                    sidebar.classList.remove('open');
+                    sidebarOverlay.classList.remove('visible');
+                });
+                
+                // Close sidebar when navigating to a different chapter
+                sidebar.addEventListener('click', function(e) {
+                    if (e.target.classList.contains('toc-link') || e.target.classList.contains('nav-btn')) {
+                        sidebar.classList.remove('open');
+                        sidebarOverlay.classList.remove('visible');
+                    }
+                });
+            }
+        })();
+        
         // Helper to map TOC filenames to Spine Indices
         // Pass the spine data from python to JS
         const spineMap = {
@@ -690,9 +971,31 @@
             `;
             document.body.appendChild(highlightToolbar);
 
+            // Prevent default context menu on long press (mobile)
+            bookContent.addEventListener('contextmenu', function(e) {
+                const selection = window.getSelection();
+                if (selection && !selection.isCollapsed && selection.toString().trim().length > 0) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    return false;
+                }
+            }, { passive: false });
+            
+            // Prevent default touch actions that might interfere
+            let touchStartTime = 0;
+            bookContent.addEventListener('touchstart', function(e) {
+                touchStartTime = Date.now();
+            }, { passive: true });
+
             // Listen for text selection
             bookContent.addEventListener('mouseup', handleTextSelection);
-            bookContent.addEventListener('touchend', handleTextSelection);
+            bookContent.addEventListener('touchend', function(e) {
+                // Add a small delay to ensure selection is complete
+                setTimeout(function() {
+                    handleTextSelection(e);
+                }, 100);
+            });
+            
             document.addEventListener('selectionchange', handleSelectionChange);
 
             // Hide toolbar when clicking elsewhere
@@ -701,6 +1004,13 @@
                     hideToolbar();
                 }
             });
+            
+            // Also hide on touch outside
+            document.addEventListener('touchstart', function(e) {
+                if (!highlightToolbar.contains(e.target) && !bookContent.contains(e.target)) {
+                    hideToolbar();
+                }
+            }, { passive: true });
         });
 
         function handleTextSelection() {
@@ -713,6 +1023,11 @@
                     if (text.length > 0) {
                         selectedRange = range.cloneRange();
                         showToolbar(range);
+                        
+                        // Vibrate on mobile to give feedback (if supported)
+                        if ('vibrate' in navigator) {
+                            navigator.vibrate(10);
+                        }
                     } else {
                         hideToolbar();
                     }
@@ -731,18 +1046,28 @@
 
         function showToolbar(range) {
             const rect = range.getBoundingClientRect();
-            const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-            const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
             
-            // Position toolbar above the selection
-            let top = rect.top + scrollTop - 50;
-            let left = rect.left + scrollLeft + (rect.width / 2) - 60;
+            // Position toolbar above the selection (using fixed positioning)
+            let top = rect.top - 55;
+            let left = rect.left + (rect.width / 2) - 70;
             
-            // Keep toolbar within viewport
-            if (top < scrollTop + 10) top = rect.bottom + scrollTop + 10;
-            if (left < scrollLeft + 10) left = scrollLeft + 10;
-            if (left + 120 > scrollLeft + window.innerWidth - 10) {
-                left = scrollLeft + window.innerWidth - 130;
+            // Keep toolbar within viewport - improved for mobile
+            const toolbarWidth = 140; // Approximate toolbar width
+            const toolbarHeight = 50; // Approximate toolbar height
+            const viewportWidth = window.innerWidth;
+            const viewportHeight = window.innerHeight;
+            
+            // Adjust vertical position
+            if (top < 10) {
+                // Show below selection if not enough space above
+                top = rect.bottom + 10;
+            }
+            
+            // Adjust horizontal position
+            if (left < 10) {
+                left = 10;
+            } else if (left + toolbarWidth > viewportWidth - 10) {
+                left = viewportWidth - toolbarWidth - 10;
             }
             
             highlightToolbar.style.top = top + 'px';
