@@ -19,3 +19,4 @@ wheels/
 *.pdf
 *.sdr/
 /audiobooks/*
+/books/*

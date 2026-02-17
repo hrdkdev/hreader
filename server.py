@@ -17,7 +17,13 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
-from reader3 import Book, BookMetadata, ChapterContent, TOCEntry
+from reader3 import (
+    Book,
+    BookMetadata,
+    ChapterContent,
+    TOCEntry,
+    auto_process_books_folder,
+)
 
 
 # Highlight data models
@@ -904,5 +910,15 @@ async def _stream_audio_file(file_path: str, request: Request):
 
 if __name__ == "__main__":
     import uvicorn
-    print("Starting server at http://127.0.0.1:8123")
+
+    # Auto-process any new EPUB files in the books/ folder
+    print("Checking for new books to process...")
+    processed, skipped = auto_process_books_folder(books_folder="books", output_dir=".")
+
+    if processed > 0:
+        print(f"Processed {processed} new book(s)")
+    if skipped > 0:
+        print(f"Skipped {skipped} already processed book(s)")
+
+    print("\nStarting server at http://127.0.0.1:8123")
     uvicorn.run(app, host="0.0.0.0", port=8123)

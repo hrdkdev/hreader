@@ -603,6 +603,63 @@ def process_all_epubs(directory: str = ".") -> tuple[int, int]:
     return processed, skipped
 
 
+def auto_process_books_folder(
+    books_folder: str = "books", output_dir: str = "."
+) -> tuple[int, int]:
+    """
+    Automatically process EPUB files from a specific folder.
+
+    Args:
+        books_folder: Folder containing EPUB files to process
+        output_dir: Directory where _data folders should be created
+
+    Returns:
+        Tuple of (processed_count, skipped_count)
+    """
+    if not os.path.exists(books_folder):
+        return 0, 0
+
+    processed = 0
+    skipped = 0
+
+    # Find all epub files in the books folder
+    epub_files = [f for f in os.listdir(books_folder) if f.endswith(".epub")]
+
+    if not epub_files:
+        return 0, 0
+
+    print(f"Auto-processing: Found {len(epub_files)} epub file(s) in {books_folder}/")
+
+    for epub_file in sorted(epub_files):
+        epub_path = os.path.join(books_folder, epub_file)
+        out_dir = os.path.join(output_dir, os.path.splitext(epub_file)[0] + "_data")
+        pkl_path = os.path.join(out_dir, "book.pkl")
+
+        # Skip if already processed
+        if os.path.exists(pkl_path):
+            print(f"  Skipping (already processed): {epub_file}")
+            skipped += 1
+            continue
+
+        print(f"\n{'=' * 60}")
+        print(f"Auto-processing: {epub_file}")
+        print("=" * 60)
+
+        try:
+            book_obj = process_epub(epub_path, out_dir)
+            save_to_pickle(book_obj, out_dir)
+            print(f"Done: {book_obj.metadata.title}")
+            processed += 1
+        except Exception as e:
+            print(f"Error processing {epub_file}: {e}")
+            skipped += 1
+
+    if processed > 0:
+        print(f"\nAuto-processing complete: {processed} new book(s) added")
+
+    return processed, skipped
+
+
 def get_chapter_title_for_index(book: Book, chapter_index: int) -> str:
     """
     Get the chapter title for a given spine index.
