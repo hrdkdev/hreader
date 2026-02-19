@@ -50,10 +50,19 @@ class RemoveHighlightRequest(BaseModel):
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 
+# Serve static files (PWA manifest, icons, etc.)
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
 # Where are the book folders located?
 BOOKS_DIR = "."
 AUDIOBOOKS_DIR = "audiobooks"
 AUDIOBOOK_MAPPING_FILE = "audiobook_mapping.json"
+
+
+@app.get("/sw.js")
+async def serve_service_worker():
+    """Serve service worker from root for proper PWA scope."""
+    return FileResponse("static/sw.js", media_type="application/javascript")
 
 
 @lru_cache(maxsize=10)
