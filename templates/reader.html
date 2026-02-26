@@ -32,8 +32,51 @@
             padding: 24px; 
             flex-shrink: 0;
             box-shadow: 2px 0 20px rgba(0, 0, 0, 0.3);
-            transition: transform 0.3s ease;
+            transition: width 0.3s ease, padding 0.3s ease, transform 0.3s ease;
             z-index: 100;
+        }
+
+        #sidebar.collapsed {
+            width: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        /* Sidebar Toggle Button */
+        #sidebar-toggle {
+            position: fixed;
+            top: 16px;
+            left: 16px;
+            z-index: 101;
+            width: 40px;
+            height: 40px;
+            background: #252538;
+            border: 1px solid rgba(139, 92, 246, 0.3);
+            border-radius: 8px;
+            color: #a1a1aa;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        #sidebar-toggle:hover {
+            background: rgba(139, 92, 246, 0.2);
+            color: #e4e4e7;
+            border-color: rgba(139, 92, 246, 0.5);
+        }
+
+        #sidebar-toggle svg {
+            width: 20px;
+            height: 20px;
+            transition: transform 0.3s ease;
+        }
+
+        #sidebar.collapsed ~ #main #sidebar-toggle svg,
+        body.sidebar-collapsed #sidebar-toggle svg {
+            transform: rotate(180deg);
         }
         
         #sidebar::-webkit-scrollbar {
@@ -120,6 +163,52 @@
             color: #a78bfa; 
             font-weight: 600;
             background: rgba(139, 92, 246, 0.2);
+        }
+
+        /* TOC Toggle Styles */
+        .toc-item-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .toc-toggle {
+            flex-shrink: 0;
+            width: 20px;
+            height: 20px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: #71717a;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+            font-size: 14px;
+            user-select: none;
+        }
+
+        .toc-toggle:hover {
+            color: #a1a1aa;
+            background: rgba(139, 92, 246, 0.1);
+        }
+
+        .toc-toggle.collapsed {
+            transform: rotate(-90deg);
+        }
+
+        .toc-item.has-children > .toc-item-wrapper .toc-link {
+            flex-grow: 1;
+        }
+
+        .toc-children {
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .toc-children.collapsed {
+            max-height: 0;
+            opacity: 0;
+            margin-top: 0 !important;
         }
 
         /* Main Content */
@@ -775,6 +864,13 @@
     <!-- Sidebar Overlay -->
     <div id="sidebar-overlay"></div>
 
+    <!-- Sidebar Toggle Button -->
+    <button id="sidebar-toggle" title="Toggle Table of Contents (T)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M15 18l-6-6 6-6"/>
+        </svg>
+    </button>
+
     <!-- SIDEBAR -->
     <div id="sidebar">
         <a href="/" class="nav-home">← Back to Library</a>
@@ -784,7 +880,7 @@
         {% macro render_toc(items) %}
             <ul class="toc-list">
             {% for item in items %}
-                <li class="toc-item">
+                <li class="toc-item {% if item.children %}has-children{% endif %}">
                     <!--
                         Matching Logic:
                         If the TOC item filename matches the current chapter filename, mark active.
@@ -813,13 +909,20 @@
 
                        BETTER FIX: Use JavaScript to match filenames.
                     -->
-                    <a href="#" onclick="findAndGo('{{ item.file_href }}')"
-                       class="toc-link {% if is_active %}active{% endif %}">
-                        {{ item.title }}
-                    </a>
+                    <div class="toc-item-wrapper">
+                        {% if item.children %}
+                            <span class="toc-toggle" onclick="tocManager.toggleSection(this)">▼</span>
+                        {% endif %}
+                        <a href="#" onclick="findAndGo('{{ item.file_href }}')"
+                           class="toc-link {% if is_active %}active{% endif %}">
+                            {{ item.title }}
+                        </a>
+                    </div>
 
                     {% if item.children %}
-                        {{ render_toc(item.children) }}
+                        <div class="toc-children">
+                            {{ render_toc(item.children) }}
+                        </div>
                     {% endif %}
                 </li>
             {% endfor %}
@@ -931,6 +1034,154 @@
                 });
             }
         })();
+        
+        // Sidebar toggle functionality
+        const sidebarManager = {
+            storageKey: 'sidebar_collapsed_{{ book_id }}',
+            sidebar: null,
+            toggleBtn: null,
+            
+            init: function() {
+                this.sidebar = document.getElementById('sidebar');
+                this.toggleBtn = document.getElementById('sidebar-toggle');
+                
+                if (!this.sidebar || !this.toggleBtn) return;
+                
+                // Restore saved state
+                this.restoreState();
+                
+                // Add click handler
+                this.toggleBtn.addEventListener('click', () => this.toggle());
+                
+                // Add keyboard shortcut (T key)
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 't' || e.key === 'T') {
+                        // Don't toggle if user is typing in an input
+                        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+                        e.preventDefault();
+                        this.toggle();
+                    }
+                });
+            },
+            
+            toggle: function() {
+                const isCollapsed = this.sidebar.classList.toggle('collapsed');
+                document.body.classList.toggle('sidebar-collapsed', isCollapsed);
+                this.saveState(isCollapsed);
+            },
+            
+            saveState: function(isCollapsed) {
+                try {
+                    localStorage.setItem(this.storageKey, JSON.stringify(isCollapsed));
+                } catch (e) {
+                    console.error('Failed to save sidebar state:', e);
+                }
+            },
+            
+            restoreState: function() {
+                try {
+                    const savedState = localStorage.getItem(this.storageKey);
+                    if (savedState === 'true') {
+                        this.sidebar.classList.add('collapsed');
+                        document.body.classList.add('sidebar-collapsed');
+                    }
+                } catch (e) {
+                    console.error('Failed to restore sidebar state:', e);
+                }
+            }
+        };
+        
+        // Initialize sidebar manager on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            sidebarManager.init();
+        });
+        
+        // TOC collapse/expand functionality
+        const tocManager = {
+            storageKey: 'toc_state_{{ book_id }}',
+            
+            init: function() {
+                // Restore saved state on page load
+                this.restoreState();
+            },
+            
+            toggleSection: function(toggleBtn) {
+                const tocItem = toggleBtn.closest('.toc-item');
+                const childrenContainer = tocItem.querySelector('.toc-children');
+                
+                if (!childrenContainer) return;
+                
+                // Toggle collapsed state
+                const isCollapsed = childrenContainer.classList.contains('collapsed');
+                
+                if (isCollapsed) {
+                    childrenContainer.classList.remove('collapsed');
+                    toggleBtn.classList.remove('collapsed');
+                } else {
+                    childrenContainer.classList.add('collapsed');
+                    toggleBtn.classList.add('collapsed');
+                }
+                
+                // Save state
+                this.saveState();
+            },
+            
+            getState: function() {
+                const state = {};
+                const tocItems = document.querySelectorAll('.toc-item.has-children');
+                
+                tocItems.forEach((item, index) => {
+                    const childrenContainer = item.querySelector('.toc-children');
+                    if (childrenContainer) {
+                        const isCollapsed = childrenContainer.classList.contains('collapsed');
+                        const tocLink = item.querySelector('.toc-link');
+                        const title = tocLink ? tocLink.textContent.trim() : '';
+                        state[index] = { collapsed: isCollapsed, title: title };
+                    }
+                });
+                
+                return state;
+            },
+            
+            saveState: function() {
+                try {
+                    const state = this.getState();
+                    localStorage.setItem(this.storageKey, JSON.stringify(state));
+                } catch (e) {
+                    console.error('Failed to save TOC state:', e);
+                }
+            },
+            
+            restoreState: function() {
+                try {
+                    const savedState = localStorage.getItem(this.storageKey);
+                    if (!savedState) return;
+                    
+                    const state = JSON.parse(savedState);
+                    const tocItems = document.querySelectorAll('.toc-item.has-children');
+                    
+                    tocItems.forEach((item, index) => {
+                        const itemState = state[index];
+                        if (!itemState) return;
+                        
+                        const childrenContainer = item.querySelector('.toc-children');
+                        const toggleBtn = item.querySelector('.toc-toggle');
+                        
+                        if (childrenContainer && toggleBtn && itemState.collapsed) {
+                            childrenContainer.classList.add('collapsed');
+                            toggleBtn.classList.add('collapsed');
+                        }
+                    });
+                } catch (e) {
+                    console.error('Failed to restore TOC state:', e);
+                }
+            }
+        };
+        
+        // Initialize TOC manager on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            tocManager.init();
+        });
         
         // Helper to map TOC filenames to Spine Indices
         // Pass the spine data from python to JS
