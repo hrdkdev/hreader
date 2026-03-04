@@ -365,6 +365,17 @@
             background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
             box-shadow: 0 2px 8px rgba(251, 191, 36, 0.4);
         }
+        
+        .highlight-btn.eli5-btn {
+            background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+            color: #fff;
+            font-weight: 600;
+        }
+        
+        .highlight-btn.eli5-btn:hover {
+            background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%);
+            box-shadow: 0 2px 8px rgba(139, 92, 246, 0.4);
+        }
 
         /* Audio Player Styles */
         #audio-player {
@@ -1173,7 +1184,7 @@
             
             highlightToolbar = document.createElement('div');
             highlightToolbar.className = 'highlight-toolbar';
-            highlightToolbar.innerHTML = '<button class="highlight-btn" onclick="highlightSelection()">Highlight</button><button class="highlight-btn" onclick="removeHighlight()">Remove</button>';
+            highlightToolbar.innerHTML = '<button class="highlight-btn" onclick="highlightSelection()">Highlight</button><button class="highlight-btn eli5-btn" onclick="explainELI5()">ELI5</button><button class="highlight-btn" onclick="removeHighlight()">Remove</button>';
             document.body.appendChild(highlightToolbar);
 
             bookContent.addEventListener('contextmenu', function(e) {
@@ -1228,12 +1239,13 @@
         function showToolbar(range) {
             var rect = range.getBoundingClientRect();
             var top = rect.top - 55;
-            var left = rect.left + (rect.width / 2) - 70;
+            var toolbarWidth = 220;
+            var left = rect.left + (rect.width / 2) - (toolbarWidth / 2);
             var viewportWidth = window.innerWidth;
             
             if (top < 10) top = rect.bottom + 10;
             if (left < 10) left = 10;
-            else if (left + 140 > viewportWidth - 10) left = viewportWidth - 150;
+            else if (left + toolbarWidth > viewportWidth - 10) left = viewportWidth - toolbarWidth - 10;
             
             highlightToolbar.style.top = top + 'px';
             highlightToolbar.style.left = left + 'px';
@@ -1323,6 +1335,20 @@
             });
             
             selection.removeAllRanges();
+            hideToolbar();
+        }
+
+        function explainELI5() {
+            var selection = window.getSelection();
+            var text = selection ? selection.toString().trim() : '';
+            if (text.length > 0) {
+                try {
+                    HReaderBridge.explainText(text);
+                } catch(e) {
+                    console.error('Failed to send text for explanation:', e);
+                }
+            }
+            if (selection) selection.removeAllRanges();
             hideToolbar();
         }
 

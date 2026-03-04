@@ -213,16 +213,182 @@
         @media (min-width: 769px) and (max-width: 1024px) {
             .book-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 28px; }
         }
+        
+        /* Header with settings */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .settings-btn {
+            background: none;
+            border: 1px solid rgba(139, 92, 246, 0.3);
+            color: #a1a1aa;
+            width: 44px;
+            height: 44px;
+            border-radius: 10px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+        }
+        
+        .settings-btn:hover {
+            background: rgba(139, 92, 246, 0.15);
+            color: #f4f4f5;
+            border-color: rgba(139, 92, 246, 0.5);
+        }
+        
+        .settings-btn svg {
+            width: 22px;
+            height: 22px;
+            fill: currentColor;
+        }
+        
+        /* Settings Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 10000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .modal-overlay.visible { display: flex; }
+        
+        .modal {
+            background: #1e1e2e;
+            border: 1px solid rgba(139, 92, 246, 0.3);
+            border-radius: 16px;
+            padding: 32px;
+            max-width: 500px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+        }
+        
+        .modal h2 {
+            color: #f4f4f5;
+            font-size: 1.4em;
+            margin: 0 0 24px 0;
+            font-weight: 600;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            color: #a1a1aa;
+            font-size: 0.9em;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+        
+        .form-group .hint {
+            color: #71717a;
+            font-size: 0.8em;
+            margin-top: 6px;
+            line-height: 1.5;
+        }
+        
+        .form-group textarea {
+            width: 100%;
+            background: #252538;
+            border: 1px solid rgba(139, 92, 246, 0.2);
+            border-radius: 8px;
+            color: #e4e4e7;
+            padding: 12px;
+            font-size: 0.95em;
+            font-family: inherit;
+            resize: vertical;
+            min-height: 80px;
+            outline: none;
+            transition: border-color 0.2s ease;
+            box-sizing: border-box;
+        }
+        
+        .form-group textarea:focus {
+            border-color: rgba(139, 92, 246, 0.5);
+        }
+        
+        .modal-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+            margin-top: 28px;
+        }
+        
+        .modal-btn {
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 0.95em;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s ease;
+        }
+        
+        .modal-btn-cancel {
+            background: #252538;
+            color: #a1a1aa;
+        }
+        
+        .modal-btn-cancel:hover {
+            background: #2a2a3e;
+            color: #f4f4f5;
+        }
+        
+        .modal-btn-save {
+            background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+            color: white;
+            box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
+        }
+        
+        .modal-btn-save:hover {
+            background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+            box-shadow: 0 4px 16px rgba(139, 92, 246, 0.5);
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Library</h1>
+        <div class="header">
+            <h1>Library</h1>
+            <button class="settings-btn" onclick="openSettings()" title="Settings">
+                <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"/></svg>
+            </button>
+        </div>
         <div id="empty-msg" class="empty-msg" style="display:none;">
             No books found in Reader folder.<br>
             Sync processed books to <code>/storage/emulated/0/Reader/</code> using Syncthing.
         </div>
         <div class="book-grid" id="book-grid"></div>
+    </div>
+    
+    <!-- Settings Modal -->
+    <div class="modal-overlay" id="settings-modal">
+        <div class="modal">
+            <h2>Settings</h2>
+            <div class="form-group">
+                <label for="eli5-prompt">ELI5 Prompt</label>
+                <textarea id="eli5-prompt" placeholder="Explain this like I'm 5:&#10;&#10;"></textarea>
+                <div class="hint">
+                    This prompt is prepended to the selected text when you tap ELI5 in the reader.
+                    The selected text is appended after this prompt.
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="modal-btn modal-btn-cancel" onclick="closeSettings()">Cancel</button>
+                <button class="modal-btn modal-btn-save" onclick="saveSettings()">Save</button>
+            </div>
+        </div>
     </div>
     <script>
         function escapeHtml(str) {
@@ -297,6 +463,50 @@
         }
 
         document.addEventListener('DOMContentLoaded', loadLibrary);
+        
+        // ---- SETTINGS ----
+        
+        var DEFAULT_ELI5_PROMPT = 'Explain this like I\'m 5:\n\n';
+        
+        function openSettings() {
+            try {
+                var settingsJson = HReaderBridge.getSettings();
+                var settings = JSON.parse(settingsJson);
+                var prompt = settings.eli5_prompt || DEFAULT_ELI5_PROMPT;
+                document.getElementById('eli5-prompt').value = prompt;
+            } catch(e) {
+                document.getElementById('eli5-prompt').value = DEFAULT_ELI5_PROMPT;
+            }
+            document.getElementById('settings-modal').classList.add('visible');
+        }
+        
+        function closeSettings() {
+            document.getElementById('settings-modal').classList.remove('visible');
+        }
+        
+        function saveSettings() {
+            var prompt = document.getElementById('eli5-prompt').value;
+            if (!prompt.trim()) prompt = DEFAULT_ELI5_PROMPT;
+            
+            try {
+                var settingsJson = HReaderBridge.getSettings();
+                var settings = JSON.parse(settingsJson);
+                settings.eli5_prompt = prompt;
+                HReaderBridge.saveSettings(JSON.stringify(settings));
+            } catch(e) {
+                var settings = { eli5_prompt: prompt };
+                HReaderBridge.saveSettings(JSON.stringify(settings));
+            }
+            closeSettings();
+        }
+        
+        // Close modal on overlay click
+        document.addEventListener('DOMContentLoaded', function() {
+            var overlay = document.getElementById('settings-modal');
+            overlay.addEventListener('click', function(e) {
+                if (e.target === overlay) closeSettings();
+            });
+        });
     </script>
 </body>
 </html>

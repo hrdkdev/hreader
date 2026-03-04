@@ -441,5 +441,52 @@ class MainActivity : AppCompatActivity() {
                 "file://${audioFiles[index].absolutePath}"
             } else ""
         }
+
+        // ---- SETTINGS ----
+
+        @JavascriptInterface
+        fun getSettings(): String {
+            val file = File(readerDir, "settings.json")
+            return if (file.exists()) file.readText() else "{}"
+        }
+
+        @JavascriptInterface
+        fun saveSettings(settingsJson: String) {
+            val file = File(readerDir, "settings.json")
+            try {
+                val data = JSONObject(settingsJson)
+                file.writeText(data.toString(2))
+            } catch (e: Exception) {
+                android.util.Log.e("HReaderBridge", "Error saving settings", e)
+            }
+        }
+
+        // ---- ELI5 / EXPLAIN WITH LLM ----
+
+        @JavascriptInterface
+        fun explainText(text: String) {
+            val settingsFile = File(readerDir, "settings.json")
+            val promptTemplate = try {
+                if (settingsFile.exists()) {
+                    val settings = JSONObject(settingsFile.readText())
+                    settings.optString("eli5_prompt", "Explain this like I'm 5:\n\n")
+                } else {
+                    "Explain this like I'm 5:\n\n"
+                }
+            } catch (e: Exception) {
+                "Explain this like I'm 5:\n\n"
+            }
+
+            val fullPrompt = promptTemplate + text
+
+            runOnUiThread {
+                val intent = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_TEXT, fullPrompt)
+                }
+                val chooser = Intent.createChooser(intent, "Explain with...")
+                startActivity(chooser)
+            }
+        }
     }
 }
