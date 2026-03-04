@@ -2,11 +2,12 @@
 Parses an EPUB file into a structured object that can be used to serve the book via a web interface.
 """
 
+import json
 import os
 import pickle
 import re
 import shutil
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 from typing import List, Dict, Optional, Any
 from datetime import datetime
 from urllib.parse import unquote
@@ -374,6 +375,119 @@ def save_to_pickle(book: Book, output_dir: str):
     with open(p_path, "wb") as f:
         pickle.dump(book, f)
     print(f"Saved structured data to {p_path}")
+    # Also export JSON for offline Android reader
+    export_to_json(book, output_dir)
+
+
+def export_to_json(book: Book, output_dir: str):
+    """
+    Export a Book object to book.json for use by the offline Android reader.
+    The JSON contains all the data needed to render the book without a server.
+    """
+
+    def toc_to_dict(entries: List[TOCEntry]) -> List[Dict]:
+        result = []
+        for entry in entries:
+            d = {
+                "title": entry.title,
+                "href": entry.href,
+                "file_href": entry.file_href,
+                "anchor": entry.anchor,
+            }
+            if entry.children:
+                d["children"] = toc_to_dict(entry.children)
+            else:
+                d["children"] = []
+            result.append(d)
+        return result
+
+    data = {
+        "metadata": {
+            "title": book.metadata.title,
+            "language": book.metadata.language,
+            "authors": book.metadata.authors,
+            "description": book.metadata.description,
+            "publisher": book.metadata.publisher,
+            "date": book.metadata.date,
+            "subjects": book.metadata.subjects,
+        },
+        "spine": [
+            {
+                "id": ch.id,
+                "href": ch.href,
+                "title": ch.title,
+                "content": ch.content,
+                "order": ch.order,
+            }
+            for ch in book.spine
+        ],
+        "toc": toc_to_dict(book.toc),
+        "cover_image": book.cover_image,
+        "source_file": book.source_file,
+        "processed_at": book.processed_at,
+        "version": book.version,
+    }
+
+    json_path = os.path.join(output_dir, "book.json")
+    with open(json_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False)
+    print(f"Saved JSON data to {json_path}")
+
+
+def export_all_to_json(directory: str = ".") -> tuple[int, int]:
+    """
+    Export all processed books to JSON format for the offline Android reader.
+    Reads book.pkl from each _data folder and writes book.json.
+
+    Returns:
+        Tuple of (exported_count, skipped_count)
+    """
+    exported = 0
+    skipped = 0
+
+    data_folders = [
+        f
+        for f in os.listdir(directory)
+        if f.endswith("_data") and os.path.isdir(os.path.join(directory, f))
+    ]
+
+    if not data_folders:
+        print("No processed books found (no *_data folders)")
+        return 0, 0
+
+    print(f"Found {len(data_folders)} processed book(s)")
+
+    for folder in sorted(data_folders):
+        folder_path = os.path.join(directory, folder)
+        pkl_path = os.path.join(folder_path, "book.pkl")
+        json_path = os.path.join(folder_path, "book.json")
+
+        if not os.path.exists(pkl_path):
+            print(f"Skipping (no book.pkl): {folder}")
+            skipped += 1
+            continue
+
+        # Skip if JSON already exists and is newer than pkl
+        if os.path.exists(json_path):
+            pkl_mtime = os.path.getmtime(pkl_path)
+            json_mtime = os.path.getmtime(json_path)
+            if json_mtime >= pkl_mtime:
+                print(f"Skipping (book.json up to date): {folder}")
+                skipped += 1
+                continue
+
+        print(f"Exporting to JSON: {folder}")
+
+        try:
+            with open(pkl_path, "rb") as f:
+                book = pickle.load(f)
+            export_to_json(book, folder_path)
+            exported += 1
+        except Exception as e:
+            print(f"Error exporting {folder}: {e}")
+            skipped += 1
+
+    return exported, skipped
 
 
 # --- PDF Processing ---
@@ -1342,6 +1456,7 @@ if __name__ == "__main__":
             "  Export highlights:  python reader3.py --export-highlights <book_data_folder>"
         )
         print("  Export all highlights: python reader3.py --export-highlights-all")
+        print("  Export to JSON:     python reader3.py --export-json-all")
         sys.exit(1)
 
     # Handle --process-all flag
@@ -1349,6 +1464,13 @@ if __name__ == "__main__":
         processed, skipped = process_all_epubs()
         print(f"\n{'=' * 60}")
         print(f"Summary: {processed} processed, {skipped} skipped")
+        sys.exit(0)
+
+    # Handle --export-json-all flag
+    if sys.argv[1] == "--export-json-all":
+        exported, skipped = export_all_to_json()
+        print(f"\n{'=' * 60}")
+        print(f"Summary: {exported} exported, {skipped} skipped")
         sys.exit(0)
 
     # Handle --obsidian-all flag

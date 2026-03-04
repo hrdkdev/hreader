@@ -1,0 +1,1861 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#8b5cf6">
+    <title>HReader</title>
+    <style>
+        /* Layout */
+        body { 
+            margin: 0; 
+            padding: 0; 
+            display: flex; 
+            height: 100vh; 
+            overflow: hidden; 
+            font-family: "Georgia", serif; 
+            background: #1a1a2e;
+            color: #e4e1d8;
+        }
+
+        /* Sidebar */
+        #sidebar { 
+            width: 320px; 
+            background: #252538; 
+            border-right: 1px solid rgba(139, 92, 246, 0.2); 
+            overflow-y: auto; 
+            padding: 24px; 
+            flex-shrink: 0;
+            box-shadow: 2px 0 20px rgba(0, 0, 0, 0.3);
+            transition: width 0.3s ease, padding 0.3s ease, transform 0.3s ease;
+            z-index: 100;
+        }
+
+        #sidebar.collapsed {
+            width: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        #sidebar-toggle {
+            position: fixed;
+            top: 16px;
+            left: 16px;
+            z-index: 101;
+            width: 40px;
+            height: 40px;
+            background: #252538;
+            border: 1px solid rgba(139, 92, 246, 0.3);
+            border-radius: 8px;
+            color: #a1a1aa;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        #sidebar-toggle:hover {
+            background: rgba(139, 92, 246, 0.2);
+            color: #e4e4e7;
+            border-color: rgba(139, 92, 246, 0.5);
+        }
+
+        #sidebar-toggle svg {
+            width: 20px;
+            height: 20px;
+            transition: transform 0.3s ease;
+        }
+
+        #sidebar.collapsed ~ #main #sidebar-toggle svg,
+        body.sidebar-collapsed #sidebar-toggle svg {
+            transform: rotate(180deg);
+        }
+        
+        #sidebar::-webkit-scrollbar { width: 8px; }
+        #sidebar::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.2); }
+        #sidebar::-webkit-scrollbar-thumb { background: rgba(139, 92, 246, 0.3); border-radius: 4px; }
+        #sidebar::-webkit-scrollbar-thumb:hover { background: rgba(139, 92, 246, 0.5); }
+        
+        .nav-header { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; 
+            font-weight: 700; 
+            color: #f4f4f5; 
+            margin-bottom: 20px; 
+            padding-bottom: 14px; 
+            border-bottom: 2px solid rgba(139, 92, 246, 0.3);
+            font-size: 1.1em;
+            letter-spacing: -0.01em;
+        }
+        
+        .nav-home { 
+            display: inline-flex;
+            align-items: center;
+            margin-bottom: 24px; 
+            color: #8b5cf6; 
+            text-decoration: none; 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; 
+            font-size: 0.95em;
+            font-weight: 500;
+            padding: 8px 12px;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+            cursor: pointer;
+            border: none;
+            background: none;
+        }
+        
+        .nav-home:hover {
+            background: rgba(139, 92, 246, 0.15);
+            color: #a78bfa;
+        }
+
+        /* TOC Tree */
+        ul.toc-list { 
+            list-style: none; 
+            padding-left: 0; 
+            margin: 0; 
+        }
+        
+        ul.toc-list ul { 
+            padding-left: 20px; 
+            margin-top: 6px;
+        }
+        
+        li.toc-item { 
+            margin-bottom: 6px; 
+        }
+        
+        a.toc-link { 
+            text-decoration: none; 
+            color: #a1a1aa; 
+            font-size: 0.95em; 
+            display: block; 
+            padding: 6px 10px; 
+            line-height: 1.5;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            cursor: pointer;
+        }
+        
+        a.toc-link:hover { 
+            color: #e4e4e7; 
+            background: rgba(139, 92, 246, 0.1);
+        }
+        
+        a.toc-link.active { 
+            color: #a78bfa; 
+            font-weight: 600;
+            background: rgba(139, 92, 246, 0.2);
+        }
+
+        .toc-item-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .toc-toggle {
+            flex-shrink: 0;
+            width: 20px;
+            height: 20px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: #71717a;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+            font-size: 14px;
+            user-select: none;
+        }
+
+        .toc-toggle:hover {
+            color: #a1a1aa;
+            background: rgba(139, 92, 246, 0.1);
+        }
+
+        .toc-toggle.collapsed {
+            transform: rotate(-90deg);
+        }
+
+        .toc-item.has-children > .toc-item-wrapper .toc-link {
+            flex-grow: 1;
+        }
+
+        .toc-children {
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .toc-children.collapsed {
+            max-height: 0;
+            opacity: 0;
+            margin-top: 0 !important;
+        }
+
+        /* Main Content */
+        #main { 
+            flex-grow: 1; 
+            overflow-y: auto; 
+            position: relative; 
+            scroll-behavior: smooth;
+            background: #1e1e2e;
+        }
+        
+        #main::-webkit-scrollbar { width: 10px; }
+        #main::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.2); }
+        #main::-webkit-scrollbar-thumb { background: rgba(139, 92, 246, 0.3); border-radius: 5px; }
+        #main::-webkit-scrollbar-thumb:hover { background: rgba(139, 92, 246, 0.5); }
+        
+        .content-container { 
+            max-width: 750px; 
+            margin: 0 auto; 
+            padding: 70px 50px; 
+            line-height: 1.85; 
+            font-size: 1.2em; 
+            color: #e4e1d8;
+        }
+
+        .book-content img { 
+            max-width: 100%; 
+            height: auto; 
+            display: block; 
+            margin: 30px auto;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+        }
+        
+        .book-content h1, .book-content h2, .book-content h3 { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; 
+            margin-top: 2em; 
+            margin-bottom: 0.8em;
+            color: #f4f4f5;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            line-height: 1.3;
+        }
+        
+        .book-content h1 { font-size: 1.8em; }
+        .book-content h2 { font-size: 1.5em; }
+        .book-content h3 { font-size: 1.25em; }
+        
+        .book-content p { 
+            margin-bottom: 1.6em; 
+            text-align: justify;
+        }
+        
+        .book-content a {
+            color: #a78bfa;
+            text-decoration: none;
+            border-bottom: 1px solid rgba(167, 139, 250, 0.3);
+            transition: all 0.2s ease;
+        }
+        
+        .book-content a:hover {
+            color: #c4b5fd;
+            border-bottom-color: rgba(167, 139, 250, 0.6);
+        }
+
+        /* Navigation Footer */
+        .chapter-nav { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center;
+            margin-top: 80px; 
+            padding-top: 30px; 
+            border-top: 2px solid rgba(139, 92, 246, 0.2); 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            gap: 20px;
+        }
+        
+        .nav-btn { 
+            text-decoration: none; 
+            color: #a78bfa; 
+            font-weight: 600; 
+            padding: 12px 24px; 
+            border: 2px solid rgba(139, 92, 246, 0.4); 
+            border-radius: 8px; 
+            transition: all 0.25s ease;
+            background: rgba(139, 92, 246, 0.1);
+            font-size: 0.95em;
+            cursor: pointer;
+        }
+        
+        .nav-btn:hover { 
+            background: rgba(139, 92, 246, 0.2);
+            border-color: rgba(139, 92, 246, 0.6);
+            color: #c4b5fd;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+        }
+        
+        .nav-btn.disabled { 
+            opacity: 0.3; 
+            pointer-events: none; 
+            border-color: rgba(161, 161, 170, 0.2); 
+            color: #71717a;
+            background: transparent;
+        }
+        
+        .chapter-nav span {
+            color: #71717a;
+            font-size: 0.9em;
+            font-weight: 500;
+        }
+
+        /* Highlighter Styles */
+        .highlight { 
+            background-color: rgba(251, 191, 36, 0.35);
+            border-bottom: 2px solid rgba(251, 191, 36, 0.6);
+            border-radius: 2px; 
+            padding: 2px 0;
+            transition: all 0.2s ease;
+            box-decoration-break: clone;
+            -webkit-box-decoration-break: clone;
+        }
+        
+        .highlight:hover { 
+            background-color: rgba(251, 191, 36, 0.45);
+            border-bottom-color: rgba(251, 191, 36, 0.8);
+        }
+        
+        .highlight-toolbar { 
+            position: fixed; 
+            background: #2a2a3e; 
+            border: 1px solid rgba(139, 92, 246, 0.3);
+            border-radius: 8px; 
+            padding: 10px 14px; 
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); 
+            z-index: 10000; 
+            display: none; 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            backdrop-filter: blur(10px);
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        
+        .highlight-btn { 
+            background: none; 
+            border: none; 
+            color: #d4d4d8; 
+            padding: 8px 14px; 
+            margin: 0 3px; 
+            border-radius: 6px; 
+            cursor: pointer; 
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+        
+        .highlight-btn:hover { 
+            background-color: rgba(139, 92, 246, 0.2);
+            color: #f4f4f5;
+        }
+        
+        .highlight-btn:first-child { 
+            background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+            color: #1a1a2e;
+            font-weight: 600;
+        }
+        
+        .highlight-btn:first-child:hover { 
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            box-shadow: 0 2px 8px rgba(251, 191, 36, 0.4);
+        }
+
+        /* Audio Player Styles */
+        #audio-player {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 70px;
+            background: linear-gradient(180deg, #1a1a2e 0%, #252538 100%);
+            border-top: 1px solid rgba(139, 92, 246, 0.3);
+            display: none;
+            align-items: center;
+            padding: 0 24px;
+            gap: 16px;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            z-index: 1001;
+            box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4);
+        }
+        #audio-player.visible { display: flex; }
+        
+        body.has-audio-player #main { padding-bottom: 70px; }
+        
+        .audio-btn {
+            background: none;
+            border: none;
+            color: #d4d4d8;
+            cursor: pointer;
+            padding: 10px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+        .audio-btn:hover { 
+            background: rgba(139, 92, 246, 0.2);
+            color: #f4f4f5;
+        }
+        .audio-btn svg { width: 24px; height: 24px; fill: currentColor; }
+        
+        .play-btn {
+            background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+            color: white;
+            width: 44px;
+            height: 44px;
+            box-shadow: 0 2px 10px rgba(139, 92, 246, 0.4);
+        }
+        .play-btn:hover { 
+            background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+            box-shadow: 0 4px 16px rgba(139, 92, 246, 0.6);
+            transform: scale(1.05);
+        }
+        
+        .audio-progress-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .audio-time {
+            color: #a1a1aa;
+            font-size: 13px;
+            font-weight: 500;
+            min-width: 50px;
+            text-align: center;
+        }
+        
+        .audio-progress-bar {
+            flex: 1;
+            height: 5px;
+            background: rgba(139, 92, 246, 0.15);
+            border-radius: 3px;
+            cursor: pointer;
+            position: relative;
+            transition: height 0.2s ease;
+        }
+        .audio-progress-bar:hover { height: 7px; }
+        
+        .audio-progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #8b5cf6 0%, #a78bfa 100%);
+            border-radius: 3px;
+            width: 0%;
+            position: relative;
+            transition: width 0.1s linear;
+        }
+        .audio-progress-fill::after {
+            content: '';
+            position: absolute;
+            right: -7px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 14px;
+            height: 14px;
+            background: #f4f4f5;
+            border-radius: 50%;
+            opacity: 0;
+            transition: opacity 0.2s;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+        .audio-progress-bar:hover .audio-progress-fill::after { opacity: 1; }
+        
+        .audio-speed-btn {
+            color: #a1a1aa;
+            font-size: 13px;
+            font-weight: 600;
+            padding: 6px 12px;
+            border: 1px solid rgba(139, 92, 246, 0.3);
+            border-radius: 6px;
+            background: rgba(139, 92, 246, 0.1);
+            cursor: pointer;
+            min-width: 50px;
+            transition: all 0.2s ease;
+        }
+        .audio-speed-btn:hover { 
+            border-color: rgba(139, 92, 246, 0.5);
+            color: #e4e4e7;
+            background: rgba(139, 92, 246, 0.2);
+        }
+        
+        .audio-chapter-container {
+            display: none;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .audio-chapter-select {
+            background: rgba(139, 92, 246, 0.15);
+            color: #e4e4e7;
+            border: 1px solid rgba(139, 92, 246, 0.3);
+            border-radius: 6px;
+            padding: 6px 10px;
+            font-size: 13px;
+            font-weight: 500;
+            max-width: 220px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .audio-chapter-select:hover { 
+            border-color: rgba(139, 92, 246, 0.5);
+            background: rgba(139, 92, 246, 0.25);
+        }
+        
+        .audio-chapter-info {
+            color: #a1a1aa;
+            font-size: 12px;
+            font-weight: 500;
+            min-width: 45px;
+        }
+        
+        .audio-nav-btn {
+            background: none;
+            border: none;
+            color: #a1a1aa;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+        .audio-nav-btn:hover { 
+            color: #e4e4e7;
+            background: rgba(139, 92, 246, 0.2);
+        }
+        .audio-nav-btn svg { width: 20px; height: 20px; fill: currentColor; }
+        
+        .audio-volume-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .audio-volume-slider {
+            width: 90px;
+            height: 5px;
+            -webkit-appearance: none;
+            background: rgba(139, 92, 246, 0.2);
+            border-radius: 3px;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+        .audio-volume-slider:hover { background: rgba(139, 92, 246, 0.3); }
+        .audio-volume-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px;
+            height: 14px;
+            background: linear-gradient(135deg, #8b5cf6 0%, #a78bfa 100%);
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(139, 92, 246, 0.4);
+        }
+
+        /* Hamburger Menu Button */
+        #menu-toggle {
+            display: none;
+            position: fixed;
+            top: 16px;
+            left: 16px;
+            z-index: 101;
+            background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+            border: none;
+            color: white;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+            transition: all 0.3s ease;
+            padding: 0;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        #menu-toggle svg {
+            width: 24px;
+            height: 24px;
+            fill: currentColor;
+        }
+        
+        #sidebar-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 99;
+            backdrop-filter: blur(4px);
+        }
+
+        .book-content {
+            -webkit-touch-callout: none;
+        }
+        
+        .book-content * {
+            -webkit-user-select: text;
+            user-select: text;
+        }
+        
+        /* Mobile Responsive Styles */
+        @media (max-width: 768px) {
+            #sidebar {
+                position: fixed;
+                top: 0;
+                left: 0;
+                bottom: 0;
+                width: 280px;
+                transform: translateX(-100%);
+                padding: 20px;
+                z-index: 100;
+            }
+            
+            #sidebar.open {
+                transform: translateX(0);
+            }
+            
+            #sidebar-overlay.visible {
+                display: block;
+            }
+            
+            #menu-toggle {
+                display: flex;
+            }
+            
+            #sidebar-toggle {
+                display: none;
+            }
+            
+            #main {
+                width: 100%;
+            }
+            
+            .content-container {
+                max-width: 100%;
+                padding: 70px 20px 40px;
+                font-size: 1.1em;
+            }
+            
+            .chapter-nav {
+                flex-direction: column;
+                gap: 12px;
+                margin-top: 50px;
+                padding-top: 20px;
+            }
+            
+            .nav-btn {
+                width: 100%;
+                text-align: center;
+            }
+            
+            .highlight-toolbar {
+                padding: 8px 12px;
+                font-size: 13px;
+                z-index: 99999;
+            }
+            
+            .highlight-btn {
+                padding: 8px 12px;
+                font-size: 14px;
+                min-width: 60px;
+                min-height: 36px;
+            }
+            
+            #audio-player {
+                height: auto;
+                padding: 12px 16px;
+                flex-wrap: wrap;
+                gap: 10px;
+            }
+            
+            body.has-audio-player #main {
+                padding-bottom: 140px;
+            }
+            
+            .audio-progress-container {
+                order: -1;
+                width: 100%;
+                flex: none;
+                margin-bottom: 4px;
+            }
+            
+            .audio-chapter-container {
+                width: 100%;
+                order: 4;
+                margin-top: 8px;
+            }
+            
+            .audio-chapter-select {
+                max-width: 100%;
+                width: 100%;
+            }
+            
+            .audio-volume-container { order: 3; }
+            .audio-speed-btn { order: 2; }
+            .play-btn { width: 40px; height: 40px; }
+            .audio-btn svg { width: 20px; height: 20px; }
+            .audio-nav-btn { padding: 6px; }
+            .audio-nav-btn svg { width: 18px; height: 18px; }
+            
+            .toc-link { font-size: 0.9em; padding: 8px 10px; }
+            .nav-header { font-size: 1em; }
+            
+            .book-content h1 { font-size: 1.6em; }
+            .book-content h2 { font-size: 1.35em; }
+            .book-content h3 { font-size: 1.15em; }
+        }
+        
+        @media (max-width: 480px) {
+            #menu-toggle { width: 40px; height: 40px; top: 12px; left: 12px; }
+            #sidebar { width: 85vw; max-width: 300px; }
+            .content-container { padding: 60px 16px 30px; font-size: 1.05em; }
+            .book-content h1 { font-size: 1.5em; }
+            .book-content h2 { font-size: 1.25em; }
+            .book-content h3 { font-size: 1.1em; }
+            .highlight-toolbar { left: 10px !important; right: 10px; width: auto; }
+        }
+        
+        @media (min-width: 769px) and (max-width: 1024px) {
+            #sidebar { width: 280px; padding: 20px; }
+            .content-container { max-width: 650px; padding: 60px 40px; }
+        }
+    </style>
+</head>
+<body>
+
+    <button id="menu-toggle" aria-label="Toggle menu">
+        <svg viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
+    </button>
+    
+    <div id="sidebar-overlay"></div>
+
+    <button id="sidebar-toggle" title="Toggle Table of Contents (T)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M15 18l-6-6 6-6"/>
+        </svg>
+    </button>
+
+    <div id="sidebar">
+        <a class="nav-home" onclick="goToLibrary()">&#8592; Back to Library</a>
+        <div class="nav-header" id="book-title-header"></div>
+        <div id="toc-container"></div>
+    </div>
+
+    <div id="main">
+        <div class="content-container">
+            <div class="book-content" id="book-content"></div>
+            <div class="chapter-nav" id="chapter-nav"></div>
+        </div>
+    </div>
+
+    <!-- AUDIO PLAYER -->
+    <div id="audio-player">
+        <audio id="audio-element" preload="metadata"></audio>
+        
+        <button class="audio-nav-btn" id="prev-chapter-btn" title="Previous Chapter ([)">
+            <svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+        </button>
+        
+        <button class="audio-btn play-btn" id="play-pause-btn" title="Play/Pause (Space)">
+            <svg id="play-icon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+            <svg id="pause-icon" viewBox="0 0 24 24" style="display:none"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+        </button>
+        
+        <button class="audio-nav-btn" id="next-chapter-btn" title="Next Chapter (])">
+            <svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+        </button>
+        
+        <div class="audio-progress-container">
+            <span class="audio-time" id="current-time">0:00</span>
+            <div class="audio-progress-bar" id="progress-bar">
+                <div class="audio-progress-fill" id="progress-fill"></div>
+            </div>
+            <span class="audio-time" id="duration">0:00</span>
+        </div>
+        
+        <div class="audio-chapter-container" id="chapter-container">
+            <span class="audio-chapter-info" id="chapter-info">1/1</span>
+            <select class="audio-chapter-select" id="chapter-select" title="Select Chapter"></select>
+        </div>
+        
+        <button class="audio-speed-btn" id="speed-btn" title="Playback Speed">1x</button>
+        
+        <div class="audio-volume-container">
+            <button class="audio-btn" id="volume-btn" title="Mute/Unmute">
+                <svg id="volume-icon" viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+                <svg id="mute-icon" viewBox="0 0 24 24" style="display:none"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>
+            </button>
+            <input type="range" class="audio-volume-slider" id="volume-slider" min="0" max="1" step="0.1" value="1">
+        </div>
+    </div>
+
+    <script>
+        // ============================================
+        // GLOBAL STATE
+        // ============================================
+        let bookId = null;
+        let bookData = null; // Full book.json contents
+        let spineMap = {};   // href -> order mapping
+        let currentChapterIndex = 0;
+        let highlightToolbar = null;
+        let selectedRange = null;
+
+        // ============================================
+        // INITIALIZATION
+        // ============================================
+        function init() {
+            // Get bookId from query params
+            const params = new URLSearchParams(window.location.search);
+            bookId = params.get('book');
+            
+            if (!bookId) {
+                goToLibrary();
+                return;
+            }
+            
+            // Load book data from bridge
+            try {
+                const json = HReaderBridge.getBookData(bookId);
+                bookData = JSON.parse(json);
+            } catch (e) {
+                console.error('Failed to load book data:', e);
+                document.getElementById('book-content').innerHTML = '<p style="color:#ef4444;">Failed to load book. Make sure the book data is synced.</p>';
+                return;
+            }
+            
+            // Set page title
+            document.title = bookData.metadata.title;
+            document.getElementById('book-title-header').textContent = bookData.metadata.title;
+            
+            // Build spine map
+            bookData.spine.forEach(function(ch) {
+                spineMap[ch.href] = ch.order;
+            });
+            
+            // Build TOC
+            buildTOC(bookData.toc);
+            
+            // Determine which chapter to show
+            var startChapter = 0;
+            try {
+                const progressJson = HReaderBridge.getProgress(bookId);
+                const progress = JSON.parse(progressJson);
+                if (progress && progress.current_chapter_index !== undefined) {
+                    startChapter = progress.current_chapter_index;
+                }
+            } catch (e) {
+                console.log('No saved progress, starting at chapter 0');
+            }
+            
+            // Clamp to valid range
+            if (startChapter < 0) startChapter = 0;
+            if (startChapter >= bookData.spine.length) startChapter = bookData.spine.length - 1;
+            
+            // Load the chapter
+            loadChapter(startChapter);
+            
+            // Initialize UI components
+            initMobileMenu();
+            initSidebar();
+            initTOCManager();
+            initHighlighter();
+            initReadingProgress();
+            initAudioPlayer();
+        }
+
+        function goToLibrary() {
+            window.location.href = 'library.html';
+        }
+
+        // ============================================
+        // TOC BUILDING
+        // ============================================
+        function buildTOC(tocItems) {
+            var container = document.getElementById('toc-container');
+            container.innerHTML = renderTocList(tocItems);
+        }
+
+        function renderTocList(items) {
+            if (!items || items.length === 0) return '';
+            
+            var html = '<ul class="toc-list">';
+            items.forEach(function(item) {
+                var hasChildren = item.children && item.children.length > 0;
+                var isActive = false;
+                if (bookData && bookData.spine[currentChapterIndex]) {
+                    isActive = bookData.spine[currentChapterIndex].href === item.file_href;
+                }
+                
+                html += '<li class="toc-item' + (hasChildren ? ' has-children' : '') + '">';
+                html += '<div class="toc-item-wrapper">';
+                
+                if (hasChildren) {
+                    html += '<span class="toc-toggle" onclick="tocManager.toggleSection(this)">&#9660;</span>';
+                }
+                
+                html += '<a class="toc-link' + (isActive ? ' active' : '') + '" onclick="findAndGo(\'' + escapeAttr(item.file_href) + '\')">' + escapeHtml(item.title) + '</a>';
+                html += '</div>';
+                
+                if (hasChildren) {
+                    html += '<div class="toc-children">' + renderTocList(item.children) + '</div>';
+                }
+                
+                html += '</li>';
+            });
+            html += '</ul>';
+            return html;
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            var div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        function escapeAttr(str) {
+            if (!str) return '';
+            return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        }
+
+        // ============================================
+        // CHAPTER LOADING
+        // ============================================
+        function loadChapter(index) {
+            if (!bookData || index < 0 || index >= bookData.spine.length) return;
+            
+            currentChapterIndex = index;
+            var chapter = bookData.spine[index];
+            
+            // Fix image paths in content to use file:// URIs
+            var content = chapter.content;
+            content = fixImagePaths(content);
+            
+            // Set content
+            document.getElementById('book-content').innerHTML = content;
+            
+            // Update chapter nav
+            updateChapterNav(index);
+            
+            // Update TOC active state
+            updateTOCActive();
+            
+            // Scroll to top
+            document.getElementById('main').scrollTop = 0;
+            
+            // Restore highlights for this chapter
+            setTimeout(function() { restoreHighlights(); }, 50);
+            setTimeout(function() { restoreHighlights(); }, 300);
+            setTimeout(function() { restoreHighlights(); }, 800);
+            
+            // Restore scroll position
+            restoreScrollPosition();
+            
+            // Save that we're on this chapter
+            saveProgress();
+        }
+
+        function fixImagePaths(html) {
+            // Replace relative image paths like "images/foo.png" with file:// URIs
+            // The bridge provides the base path
+            try {
+                var basePath = HReaderBridge.getBookBasePath(bookId);
+                // Replace src="images/..." patterns
+                html = html.replace(/src="images\//g, 'src="file://' + basePath + '/images/');
+                // Also handle src="./images/..."
+                html = html.replace(/src="\.\/images\//g, 'src="file://' + basePath + '/images/');
+            } catch (e) {
+                console.error('Error fixing image paths:', e);
+            }
+            return html;
+        }
+
+        function updateChapterNav(index) {
+            var nav = document.getElementById('chapter-nav');
+            var total = bookData.spine.length;
+            var hasPrev = index > 0;
+            var hasNext = index < total - 1;
+            
+            var html = '';
+            
+            if (hasPrev) {
+                html += '<a class="nav-btn" onclick="loadChapter(' + (index - 1) + ')">&#8592; Previous</a>';
+            } else {
+                html += '<span class="nav-btn disabled">&#8592; Previous</span>';
+            }
+            
+            html += '<span style="color: #999; padding: 10px;">Section ' + (index + 1) + ' of ' + total + '</span>';
+            
+            if (hasNext) {
+                html += '<a class="nav-btn" onclick="loadChapter(' + (index + 1) + ')">Next &#8594;</a>';
+            } else {
+                html += '<span class="nav-btn disabled">Next &#8594;</span>';
+            }
+            
+            nav.innerHTML = html;
+        }
+
+        function updateTOCActive() {
+            // Remove all active classes
+            document.querySelectorAll('.toc-link.active').forEach(function(el) {
+                el.classList.remove('active');
+            });
+            
+            // Set new active based on current chapter href
+            if (!bookData || !bookData.spine[currentChapterIndex]) return;
+            var currentHref = bookData.spine[currentChapterIndex].href;
+            
+            document.querySelectorAll('.toc-link').forEach(function(link) {
+                var onclick = link.getAttribute('onclick');
+                if (onclick && onclick.indexOf(currentHref) !== -1) {
+                    link.classList.add('active');
+                }
+            });
+        }
+
+        function findAndGo(filename) {
+            var cleanFile = filename.split('#')[0];
+            var idx = spineMap[cleanFile];
+            if (idx !== undefined) {
+                loadChapter(idx);
+                // Close mobile sidebar
+                var sidebar = document.getElementById('sidebar');
+                var overlay = document.getElementById('sidebar-overlay');
+                if (sidebar) sidebar.classList.remove('open');
+                if (overlay) overlay.classList.remove('visible');
+            } else {
+                console.log("Could not find index for", filename);
+            }
+        }
+
+        // ============================================
+        // MOBILE MENU
+        // ============================================
+        function initMobileMenu() {
+            var menuToggle = document.getElementById('menu-toggle');
+            var sidebar = document.getElementById('sidebar');
+            var sidebarOverlay = document.getElementById('sidebar-overlay');
+            
+            if (menuToggle && sidebar && sidebarOverlay) {
+                menuToggle.addEventListener('click', function() {
+                    sidebar.classList.toggle('open');
+                    sidebarOverlay.classList.toggle('visible');
+                });
+                
+                sidebarOverlay.addEventListener('click', function() {
+                    sidebar.classList.remove('open');
+                    sidebarOverlay.classList.remove('visible');
+                });
+                
+                sidebar.addEventListener('click', function(e) {
+                    if (e.target.classList.contains('toc-link') || e.target.classList.contains('nav-btn')) {
+                        sidebar.classList.remove('open');
+                        sidebarOverlay.classList.remove('visible');
+                    }
+                });
+            }
+        }
+
+        // ============================================
+        // SIDEBAR TOGGLE
+        // ============================================
+        function initSidebar() {
+            var sidebar = document.getElementById('sidebar');
+            var toggleBtn = document.getElementById('sidebar-toggle');
+            var storageKey = 'sidebar_collapsed_' + bookId;
+            
+            if (!sidebar || !toggleBtn) return;
+            
+            // Restore state
+            try {
+                var saved = localStorage.getItem(storageKey);
+                if (saved === 'true') {
+                    sidebar.classList.add('collapsed');
+                    document.body.classList.add('sidebar-collapsed');
+                }
+            } catch (e) {}
+            
+            toggleBtn.addEventListener('click', function() {
+                var isCollapsed = sidebar.classList.toggle('collapsed');
+                document.body.classList.toggle('sidebar-collapsed', isCollapsed);
+                try { localStorage.setItem(storageKey, JSON.stringify(isCollapsed)); } catch(e) {}
+            });
+            
+            document.addEventListener('keydown', function(e) {
+                if ((e.key === 't' || e.key === 'T') && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+                    e.preventDefault();
+                    toggleBtn.click();
+                }
+            });
+        }
+
+        // ============================================
+        // TOC MANAGER
+        // ============================================
+        var tocManager = {
+            storageKey: '',
+            
+            init: function() {
+                this.storageKey = 'toc_state_' + bookId;
+                this.restoreState();
+            },
+            
+            toggleSection: function(toggleBtn) {
+                var tocItem = toggleBtn.closest('.toc-item');
+                var childrenContainer = tocItem.querySelector('.toc-children');
+                if (!childrenContainer) return;
+                
+                var isCollapsed = childrenContainer.classList.contains('collapsed');
+                if (isCollapsed) {
+                    childrenContainer.classList.remove('collapsed');
+                    toggleBtn.classList.remove('collapsed');
+                } else {
+                    childrenContainer.classList.add('collapsed');
+                    toggleBtn.classList.add('collapsed');
+                }
+                this.saveState();
+            },
+            
+            getState: function() {
+                var state = {};
+                document.querySelectorAll('.toc-item.has-children').forEach(function(item, index) {
+                    var childrenContainer = item.querySelector('.toc-children');
+                    if (childrenContainer) {
+                        state[index] = { collapsed: childrenContainer.classList.contains('collapsed') };
+                    }
+                });
+                return state;
+            },
+            
+            saveState: function() {
+                try { localStorage.setItem(this.storageKey, JSON.stringify(this.getState())); } catch(e) {}
+            },
+            
+            restoreState: function() {
+                try {
+                    var saved = localStorage.getItem(this.storageKey);
+                    if (!saved) return;
+                    var state = JSON.parse(saved);
+                    document.querySelectorAll('.toc-item.has-children').forEach(function(item, index) {
+                        var itemState = state[index];
+                        if (!itemState) return;
+                        var childrenContainer = item.querySelector('.toc-children');
+                        var toggleBtn = item.querySelector('.toc-toggle');
+                        if (childrenContainer && toggleBtn && itemState.collapsed) {
+                            childrenContainer.classList.add('collapsed');
+                            toggleBtn.classList.add('collapsed');
+                        }
+                    });
+                } catch(e) {}
+            }
+        };
+
+        function initTOCManager() {
+            tocManager.init();
+        }
+
+        // ============================================
+        // HIGHLIGHTING SYSTEM
+        // ============================================
+        function initHighlighter() {
+            var bookContent = document.getElementById('book-content');
+            
+            highlightToolbar = document.createElement('div');
+            highlightToolbar.className = 'highlight-toolbar';
+            highlightToolbar.innerHTML = '<button class="highlight-btn" onclick="highlightSelection()">Highlight</button><button class="highlight-btn" onclick="removeHighlight()">Remove</button>';
+            document.body.appendChild(highlightToolbar);
+
+            bookContent.addEventListener('contextmenu', function(e) {
+                var selection = window.getSelection();
+                if (selection && !selection.isCollapsed && selection.toString().trim().length > 0) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    return false;
+                }
+            }, { passive: false });
+
+            bookContent.addEventListener('mouseup', handleTextSelection);
+            bookContent.addEventListener('touchend', function(e) {
+                setTimeout(function() { handleTextSelection(e); }, 100);
+            });
+            
+            document.addEventListener('selectionchange', handleSelectionChange);
+
+            document.addEventListener('mousedown', function(e) {
+                if (!highlightToolbar.contains(e.target)) hideToolbar();
+            });
+            
+            document.addEventListener('touchstart', function(e) {
+                if (!highlightToolbar.contains(e.target) && !bookContent.contains(e.target)) hideToolbar();
+            }, { passive: true });
+        }
+
+        function handleTextSelection() {
+            setTimeout(function() {
+                var selection = window.getSelection();
+                if (selection.rangeCount > 0 && !selection.isCollapsed) {
+                    var range = selection.getRangeAt(0);
+                    var text = selection.toString().trim();
+                    if (text.length > 0) {
+                        selectedRange = range.cloneRange();
+                        showToolbar(range);
+                        if ('vibrate' in navigator) navigator.vibrate(10);
+                    } else {
+                        hideToolbar();
+                    }
+                } else {
+                    hideToolbar();
+                }
+            }, 10);
+        }
+
+        function handleSelectionChange() {
+            var selection = window.getSelection();
+            if (selection.isCollapsed || selection.toString().trim() === '') hideToolbar();
+        }
+
+        function showToolbar(range) {
+            var rect = range.getBoundingClientRect();
+            var top = rect.top - 55;
+            var left = rect.left + (rect.width / 2) - 70;
+            var viewportWidth = window.innerWidth;
+            
+            if (top < 10) top = rect.bottom + 10;
+            if (left < 10) left = 10;
+            else if (left + 140 > viewportWidth - 10) left = viewportWidth - 150;
+            
+            highlightToolbar.style.top = top + 'px';
+            highlightToolbar.style.left = left + 'px';
+            highlightToolbar.style.display = 'block';
+        }
+
+        function hideToolbar() {
+            if (highlightToolbar) highlightToolbar.style.display = 'none';
+            selectedRange = null;
+        }
+
+        function calculateRangeOffset(container, range) {
+            var walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null, false);
+            var currentOffset = 0;
+            var node;
+            while (node = walker.nextNode()) {
+                if (node === range.startContainer) return currentOffset + range.startOffset;
+                currentOffset += node.textContent.length;
+            }
+            return -1;
+        }
+
+        function highlightSelection() {
+            if (!selectedRange) return;
+            var selection = window.getSelection();
+            if (selection.rangeCount === 0) return;
+            
+            var range = selection.getRangeAt(0);
+            var text = selection.toString().trim();
+            
+            if (isHighlighted(range)) { removeHighlight(); return; }
+            
+            var bookContent = document.getElementById('book-content');
+            var startOffset = calculateRangeOffset(bookContent, range);
+            if (startOffset === -1) return;
+            
+            var highlightId = 'highlight_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            var highlightSpan = document.createElement('span');
+            highlightSpan.className = 'highlight';
+            highlightSpan.id = highlightId;
+            
+            try {
+                range.surroundContents(highlightSpan);
+            } catch (e) {
+                var contents = range.extractContents();
+                highlightSpan.appendChild(contents);
+                range.insertNode(highlightSpan);
+            }
+            
+            // Save via bridge
+            try {
+                var highlightData = {
+                    id: highlightId,
+                    chapter_index: currentChapterIndex,
+                    text: text,
+                    start_offset: startOffset,
+                    end_offset: startOffset + text.length,
+                    created_at: new Date().toISOString()
+                };
+                HReaderBridge.saveHighlight(bookId, currentChapterIndex, JSON.stringify(highlightData));
+            } catch (e) {
+                console.error('Failed to save highlight:', e);
+            }
+            
+            selection.removeAllRanges();
+            hideToolbar();
+        }
+
+        function removeHighlight() {
+            var selection = window.getSelection();
+            if (selection.rangeCount === 0) return;
+            var range = selection.getRangeAt(0);
+            var elements = getHighlightedElements(range);
+            
+            if (elements.length === 0) { hideToolbar(); return; }
+            
+            elements.forEach(function(element) {
+                var highlightId = element.id;
+                if (highlightId && highlightId.startsWith('highlight_')) {
+                    try {
+                        HReaderBridge.deleteHighlight(bookId, currentChapterIndex, highlightId);
+                    } catch(e) { console.error('Failed to delete highlight:', e); }
+                }
+                var parent = element.parentNode;
+                while (element.firstChild) parent.insertBefore(element.firstChild, element);
+                parent.removeChild(element);
+            });
+            
+            selection.removeAllRanges();
+            hideToolbar();
+        }
+
+        function isHighlighted(range) {
+            var container = range.commonAncestorContainer;
+            var elements = container.querySelectorAll ? container.querySelectorAll('.highlight') : [];
+            return Array.from(elements).some(function(el) { return range.intersectsNode(el); });
+        }
+
+        function getHighlightedElements(range) {
+            var container = range.commonAncestorContainer;
+            var elements = container.querySelectorAll ? container.querySelectorAll('.highlight') : [];
+            return Array.from(elements).filter(function(el) { return range.intersectsNode(el); });
+        }
+
+        function restoreHighlights() {
+            var highlights = [];
+            try {
+                var json = HReaderBridge.getHighlights(bookId, currentChapterIndex);
+                var data = JSON.parse(json);
+                highlights = data.highlights || data || [];
+            } catch(e) {
+                return;
+            }
+            
+            var bookContent = document.getElementById('book-content');
+            if (!bookContent || highlights.length === 0) return;
+            
+            // Remove existing duplicates
+            highlights.forEach(function(h) {
+                var existing = document.getElementById(h.id);
+                if (existing) {
+                    var parent = existing.parentNode;
+                    while (existing.firstChild) parent.insertBefore(existing.firstChild, existing);
+                    parent.removeChild(existing);
+                }
+            });
+            
+            highlights.forEach(function(highlight) {
+                try {
+                    if (!restoreByOffset(bookContent, highlight)) {
+                        restoreByTextSearch(bookContent, highlight);
+                    }
+                } catch(e) {
+                    console.error('Error restoring highlight:', e);
+                }
+            });
+        }
+
+        function restoreByOffset(container, highlight) {
+            var text = highlight.text;
+            var targetOffset = highlight.start_offset;
+            var endOffset = highlight.end_offset;
+            
+            var walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null, false);
+            var currentOffset = 0;
+            var startNode = null, startNodeOffset = 0, endNode = null, endNodeOffset = 0;
+            var textNodes = [];
+            var node;
+            
+            while (node = walker.nextNode()) {
+                var nodeLength = node.textContent.length;
+                textNodes.push({ node: node, startOffset: currentOffset, endOffset: currentOffset + nodeLength, text: node.textContent });
+                if (!startNode && currentOffset <= targetOffset && currentOffset + nodeLength > targetOffset) {
+                    startNode = node;
+                    startNodeOffset = targetOffset - currentOffset;
+                }
+                if (!endNode && currentOffset < endOffset && currentOffset + nodeLength >= endOffset) {
+                    endNode = node;
+                    endNodeOffset = endOffset - currentOffset;
+                }
+                currentOffset += nodeLength;
+            }
+            
+            if (!startNode || !endNode) return false;
+            
+            // Verify text
+            var collected = '';
+            var collecting = false;
+            for (var i = 0; i < textNodes.length; i++) {
+                var ni = textNodes[i];
+                if (ni.node === startNode) {
+                    collecting = true;
+                    if (ni.node === endNode) { collected += ni.text.substring(startNodeOffset, endNodeOffset); break; }
+                    else collected += ni.text.substring(startNodeOffset);
+                } else if (collecting) {
+                    if (ni.node === endNode) { collected += ni.text.substring(0, endNodeOffset); break; }
+                    else collected += ni.text;
+                }
+            }
+            
+            if (collected.replace(/\s+/g, ' ').trim() !== text.replace(/\s+/g, ' ').trim()) return false;
+            
+            var highlightSpan = document.createElement('span');
+            highlightSpan.className = 'highlight';
+            highlightSpan.id = highlight.id;
+            
+            if (startNode === endNode) {
+                var nodeText = startNode.textContent;
+                var before = nodeText.substring(0, startNodeOffset);
+                var highlighted = nodeText.substring(startNodeOffset, endNodeOffset);
+                var after = nodeText.substring(endNodeOffset);
+                var parent = startNode.parentNode;
+                if (before) parent.insertBefore(document.createTextNode(before), startNode);
+                highlightSpan.textContent = highlighted;
+                parent.insertBefore(highlightSpan, startNode);
+                if (after) parent.insertBefore(document.createTextNode(after), startNode);
+                parent.removeChild(startNode);
+                return true;
+            }
+            
+            var range = document.createRange();
+            range.setStart(startNode, startNodeOffset);
+            range.setEnd(endNode, endNodeOffset);
+            try {
+                range.surroundContents(highlightSpan);
+                return true;
+            } catch(e) {
+                var contents = range.extractContents();
+                highlightSpan.appendChild(contents);
+                range.insertNode(highlightSpan);
+                return true;
+            }
+        }
+
+        function restoreByTextSearch(container, highlight) {
+            var text = highlight.text;
+            var walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null, false);
+            var textNodes = [];
+            var node;
+            while (node = walker.nextNode()) textNodes.push(node);
+            
+            // Single node search
+            for (var i = 0; i < textNodes.length; i++) {
+                var nodeText = textNodes[i].textContent;
+                var idx = nodeText.indexOf(text);
+                if (idx !== -1) {
+                    var hs = document.createElement('span');
+                    hs.className = 'highlight';
+                    hs.id = highlight.id;
+                    var before = nodeText.substring(0, idx);
+                    var after = nodeText.substring(idx + text.length);
+                    var parent = textNodes[i].parentNode;
+                    if (before) parent.insertBefore(document.createTextNode(before), textNodes[i]);
+                    hs.textContent = text;
+                    parent.insertBefore(hs, textNodes[i]);
+                    if (after) parent.insertBefore(document.createTextNode(after), textNodes[i]);
+                    parent.removeChild(textNodes[i]);
+                    return true;
+                }
+            }
+            
+            // Multi-node search
+            var normalizedTarget = text.replace(/\s+/g, ' ').trim();
+            for (var i = 0; i < textNodes.length; i++) {
+                var collectedText = '';
+                var sNode = null, sOffset = 0, eNode = null, eOffset = 0;
+                
+                for (var j = i; j < textNodes.length; j++) {
+                    var nt = textNodes[j].textContent;
+                    if (j === i) {
+                        for (var k = 0; k < nt.length; k++) {
+                            var sub = nt.substring(k);
+                            var testText = (collectedText + sub).replace(/\s+/g, ' ').trim();
+                            if (normalizedTarget.startsWith(testText)) {
+                                sNode = textNodes[j]; sOffset = k;
+                                collectedText = sub;
+                                if (testText === normalizedTarget) { eNode = textNodes[j]; eOffset = nt.length; }
+                                break;
+                            }
+                        }
+                    } else if (sNode) {
+                        collectedText += nt;
+                        var testText = collectedText.replace(/\s+/g, ' ').trim();
+                        if (testText === normalizedTarget) { eNode = textNodes[j]; eOffset = nt.length; break; }
+                        else if (!normalizedTarget.startsWith(testText)) { sNode = null; break; }
+                    }
+                }
+                
+                if (sNode && eNode) {
+                    var range = document.createRange();
+                    range.setStart(sNode, sOffset);
+                    range.setEnd(eNode, eOffset);
+                    var hs = document.createElement('span');
+                    hs.className = 'highlight';
+                    hs.id = highlight.id;
+                    try { range.surroundContents(hs); return true; }
+                    catch(e) {
+                        var c = range.extractContents();
+                        hs.appendChild(c);
+                        range.insertNode(hs);
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        // ============================================
+        // READING PROGRESS
+        // ============================================
+        var progressSaveInterval = null;
+
+        function initReadingProgress() {
+            progressSaveInterval = setInterval(function() { saveProgress(); }, 10000);
+            window.addEventListener('beforeunload', function() { saveProgress(); });
+        }
+
+        function saveProgress() {
+            try {
+                var main = document.getElementById('main');
+                var scrollTop = main.scrollTop;
+                var scrollHeight = main.scrollHeight;
+                var clientHeight = main.clientHeight;
+                var maxScroll = scrollHeight - clientHeight;
+                var scrollPercentage = maxScroll > 0 ? scrollTop / maxScroll : 0;
+                
+                var progressData = {
+                    current_chapter_index: currentChapterIndex,
+                    scroll_position: Math.round(scrollTop),
+                    scroll_percentage: scrollPercentage,
+                    last_updated: new Date().toISOString(),
+                    book_id: bookId
+                };
+                HReaderBridge.saveProgress(bookId, JSON.stringify(progressData));
+            } catch(e) {
+                console.error('Error saving progress:', e);
+            }
+        }
+
+        function restoreScrollPosition() {
+            try {
+                var json = HReaderBridge.getProgress(bookId);
+                var progress = JSON.parse(json);
+                
+                if (progress.current_chapter_index === currentChapterIndex) {
+                    var scrollTop = progress.scroll_position || 0;
+                    var scrollPercentage = progress.scroll_percentage || 0;
+                    
+                    setTimeout(function() {
+                        var main = document.getElementById('main');
+                        if (scrollTop > 0) {
+                            main.scrollTo({ top: scrollTop, behavior: 'smooth' });
+                        } else if (scrollPercentage > 0) {
+                            var maxScroll = main.scrollHeight - main.clientHeight;
+                            main.scrollTo({ top: maxScroll * scrollPercentage, behavior: 'smooth' });
+                        }
+                    }, 100);
+                }
+            } catch(e) {}
+        }
+
+        // ============================================
+        // AUDIO PLAYER
+        // ============================================
+        var audioPlayer = {
+            element: null,
+            playerUI: null,
+            isPlaying: false,
+            saveInterval: null,
+            speedOptions: [0.5, 0.75, 1, 1.25, 1.5, 2],
+            currentSpeedIndex: 2,
+            isMultiFile: false,
+            chapters: [],
+            currentChapterIndex: 0,
+            
+            init: function() {
+                this.element = document.getElementById('audio-element');
+                this.playerUI = document.getElementById('audio-player');
+                if (!this.element || !this.playerUI) return;
+                
+                this.checkAudiobookAvailability();
+            },
+            
+            checkAudiobookAvailability: function() {
+                try {
+                    var json = HReaderBridge.getAudioMetadata(bookId);
+                    var data = JSON.parse(json);
+                    
+                    if (data.available) {
+                        this.isMultiFile = data.is_multi_file || false;
+                        this.chapters = data.chapters || [];
+                        this.setupPlayer();
+                    }
+                } catch(e) {
+                    console.log('No audiobook available');
+                }
+            },
+            
+            setupPlayer: function() {
+                this.playerUI.classList.add('visible');
+                document.body.classList.add('has-audio-player');
+                
+                if (this.isMultiFile && this.chapters.length > 1) {
+                    this.setupChapterSelector();
+                }
+                
+                this.setupEventListeners();
+                this.loadSavedPosition();
+                this.loadAudioChapter(this.currentChapterIndex);
+                this.startAutoSave();
+            },
+            
+            setupChapterSelector: function() {
+                var self = this;
+                var chapterSelect = document.getElementById('chapter-select');
+                var chapterContainer = document.getElementById('chapter-container');
+                if (!chapterSelect || !chapterContainer) return;
+                
+                chapterSelect.innerHTML = this.chapters.map(function(ch, idx) {
+                    var name = ch.filename.replace('.m4b', '').replace('.M4B', '').replace('.mp3', '').replace('.MP3', '');
+                    return '<option value="' + idx + '">' + name + '</option>';
+                }).join('');
+                
+                chapterContainer.style.display = 'flex';
+                
+                chapterSelect.addEventListener('change', function(e) {
+                    var wasPlaying = self.isPlaying;
+                    self.loadAudioChapter(parseInt(e.target.value));
+                    if (wasPlaying) self.element.play();
+                });
+            },
+            
+            loadAudioChapter: function(index) {
+                if (this.isMultiFile) {
+                    if (index < 0 || index >= this.chapters.length) return;
+                    this.currentChapterIndex = index;
+                    // Get file URI from bridge
+                    try {
+                        var uri = HReaderBridge.getAudioFileUri(bookId, index);
+                        this.element.src = uri;
+                    } catch(e) { console.error('Error loading audio chapter:', e); }
+                    
+                    var sel = document.getElementById('chapter-select');
+                    if (sel) sel.value = index;
+                    var info = document.getElementById('chapter-info');
+                    if (info) info.textContent = (index + 1) + '/' + this.chapters.length;
+                } else {
+                    try {
+                        var uri = HReaderBridge.getAudioFileUri(bookId, 0);
+                        this.element.src = uri;
+                    } catch(e) { console.error('Error loading audio:', e); }
+                }
+            },
+            
+            nextChapter: function() {
+                if (this.currentChapterIndex < this.chapters.length - 1) {
+                    var wasPlaying = this.isPlaying;
+                    this.loadAudioChapter(this.currentChapterIndex + 1);
+                    if (wasPlaying) this.element.play();
+                }
+            },
+            
+            prevChapter: function() {
+                if (this.element.currentTime > 3) {
+                    this.element.currentTime = 0;
+                } else if (this.currentChapterIndex > 0) {
+                    var wasPlaying = this.isPlaying;
+                    this.loadAudioChapter(this.currentChapterIndex - 1);
+                    if (wasPlaying) this.element.play();
+                }
+            },
+            
+            setupEventListeners: function() {
+                var self = this;
+                var audio = this.element;
+                var playPauseBtn = document.getElementById('play-pause-btn');
+                var playIcon = document.getElementById('play-icon');
+                var pauseIcon = document.getElementById('pause-icon');
+                var progressBar = document.getElementById('progress-bar');
+                var progressFill = document.getElementById('progress-fill');
+                var currentTimeEl = document.getElementById('current-time');
+                var durationEl = document.getElementById('duration');
+                var speedBtn = document.getElementById('speed-btn');
+                var volumeBtn = document.getElementById('volume-btn');
+                var volumeSlider = document.getElementById('volume-slider');
+                var prevBtn = document.getElementById('prev-chapter-btn');
+                var nextBtn = document.getElementById('next-chapter-btn');
+                
+                playPauseBtn.addEventListener('click', function() { self.togglePlayPause(); });
+                if (prevBtn) prevBtn.addEventListener('click', function() { self.prevChapter(); });
+                if (nextBtn) nextBtn.addEventListener('click', function() { self.nextChapter(); });
+                
+                audio.addEventListener('play', function() {
+                    self.isPlaying = true;
+                    playIcon.style.display = 'none';
+                    pauseIcon.style.display = 'block';
+                });
+                
+                audio.addEventListener('pause', function() {
+                    self.isPlaying = false;
+                    playIcon.style.display = 'block';
+                    pauseIcon.style.display = 'none';
+                });
+                
+                audio.addEventListener('timeupdate', function() {
+                    if (audio.duration) {
+                        progressFill.style.width = (audio.currentTime / audio.duration * 100) + '%';
+                        currentTimeEl.textContent = self.formatTime(audio.currentTime);
+                        var remaining = (audio.duration - audio.currentTime) / audio.playbackRate;
+                        durationEl.textContent = '-' + self.formatTime(remaining);
+                    }
+                });
+                
+                audio.addEventListener('loadedmetadata', function() {
+                    var remaining = (audio.duration - audio.currentTime) / audio.playbackRate;
+                    durationEl.textContent = '-' + self.formatTime(remaining);
+                });
+                
+                audio.addEventListener('ended', function() {
+                    if (self.isMultiFile && self.currentChapterIndex < self.chapters.length - 1) {
+                        self.loadAudioChapter(self.currentChapterIndex + 1);
+                        audio.play();
+                    }
+                });
+                
+                progressBar.addEventListener('click', function(e) {
+                    var rect = progressBar.getBoundingClientRect();
+                    audio.currentTime = ((e.clientX - rect.left) / rect.width) * audio.duration;
+                });
+                
+                speedBtn.addEventListener('click', function() { self.cycleSpeed(); });
+                
+                volumeSlider.addEventListener('input', function(e) {
+                    audio.volume = e.target.value;
+                    self.updateVolumeIcon();
+                });
+                
+                volumeBtn.addEventListener('click', function() {
+                    audio.muted = !audio.muted;
+                    self.updateVolumeIcon();
+                });
+                
+                document.addEventListener('keydown', function(e) {
+                    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+                    switch(e.code) {
+                        case 'Space': e.preventDefault(); self.togglePlayPause(); break;
+                        case 'ArrowLeft': audio.currentTime = Math.max(0, audio.currentTime - (e.shiftKey ? 30 : 10)); break;
+                        case 'ArrowRight': audio.currentTime = Math.min(audio.duration, audio.currentTime + (e.shiftKey ? 30 : 10)); break;
+                        case 'ArrowUp': e.preventDefault(); audio.volume = Math.min(1, audio.volume + 0.1); volumeSlider.value = audio.volume; self.updateVolumeIcon(); break;
+                        case 'ArrowDown': e.preventDefault(); audio.volume = Math.max(0, audio.volume - 0.1); volumeSlider.value = audio.volume; self.updateVolumeIcon(); break;
+                        case 'BracketLeft': self.prevChapter(); break;
+                        case 'BracketRight': self.nextChapter(); break;
+                    }
+                });
+            },
+            
+            togglePlayPause: function() {
+                if (this.isPlaying) this.element.pause();
+                else this.element.play();
+            },
+            
+            cycleSpeed: function() {
+                this.currentSpeedIndex = (this.currentSpeedIndex + 1) % this.speedOptions.length;
+                var speed = this.speedOptions[this.currentSpeedIndex];
+                this.element.playbackRate = speed;
+                document.getElementById('speed-btn').textContent = speed + 'x';
+                if (this.element.duration) {
+                    var remaining = (this.element.duration - this.element.currentTime) / this.element.playbackRate;
+                    document.getElementById('duration').textContent = '-' + this.formatTime(remaining);
+                }
+            },
+            
+            updateVolumeIcon: function() {
+                var vi = document.getElementById('volume-icon');
+                var mi = document.getElementById('mute-icon');
+                if (this.element.muted || this.element.volume === 0) {
+                    vi.style.display = 'none'; mi.style.display = 'block';
+                } else {
+                    vi.style.display = 'block'; mi.style.display = 'none';
+                }
+            },
+            
+            formatTime: function(seconds) {
+                if (!seconds || isNaN(seconds)) return '0:00';
+                var h = Math.floor(seconds / 3600);
+                var m = Math.floor((seconds % 3600) / 60);
+                var s = Math.floor(seconds % 60);
+                if (h > 0) return h + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+                return m + ':' + String(s).padStart(2, '0');
+            },
+            
+            loadSavedPosition: function() {
+                var self = this;
+                try {
+                    var json = HReaderBridge.getAudioPosition(bookId);
+                    var data = JSON.parse(json);
+                    if (data.chapter_index !== undefined && this.isMultiFile) {
+                        this.currentChapterIndex = data.chapter_index;
+                    }
+                    if (data.position && data.position > 0) {
+                        this.pendingSeek = data.position;
+                        this.element.addEventListener('loadedmetadata', function() {
+                            if (self.pendingSeek) {
+                                self.element.currentTime = self.pendingSeek;
+                                self.pendingSeek = null;
+                            }
+                        }, { once: true });
+                    }
+                } catch(e) {}
+            },
+            
+            saveAudioPosition: function() {
+                if (!this.element.currentTime && !this.isMultiFile) return;
+                try {
+                    var data = {
+                        position: this.element.currentTime,
+                        duration: this.element.duration || 0,
+                        chapter_index: this.currentChapterIndex,
+                        last_updated: new Date().toISOString()
+                    };
+                    HReaderBridge.saveAudioPosition(bookId, JSON.stringify(data));
+                } catch(e) {}
+            },
+            
+            startAutoSave: function() {
+                var self = this;
+                this.saveInterval = setInterval(function() {
+                    if (self.isPlaying) self.saveAudioPosition();
+                }, 5000);
+                this.element.addEventListener('pause', function() { self.saveAudioPosition(); });
+                window.addEventListener('beforeunload', function() { self.saveAudioPosition(); });
+            }
+        };
+
+        function initAudioPlayer() {
+            audioPlayer.init();
+        }
+
+        // ============================================
+        // START
+        // ============================================
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
