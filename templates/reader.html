@@ -342,6 +342,7 @@
             transition: all 0.2s ease;
             box-decoration-break: clone;
             -webkit-box-decoration-break: clone;
+            cursor: pointer;
         }
         
         .highlight:hover { 
@@ -1214,6 +1215,7 @@
         // Highlighter functionality
         let highlightToolbar = null;
         let selectedRange = null;
+        let clickedHighlight = null; // Track highlight clicked for removal
 
         // Initialize highlighter when page loads
         document.addEventListener('DOMContentLoaded', function() {
@@ -1244,6 +1246,24 @@
                 touchStartTime = Date.now();
             }, { passive: true });
 
+            // Click-to-remove: clicking on a highlight shows removal toolbar
+            bookContent.addEventListener('click', function(e) {
+                const highlightEl = findHighlightAncestor(e.target);
+                if (highlightEl) {
+                    // Don't interfere if there's an active text selection
+                    const selection = window.getSelection();
+                    if (selection && !selection.isCollapsed && selection.toString().trim().length > 0) {
+                        return;
+                    }
+                    e.preventDefault();
+                    e.stopPropagation();
+                    clickedHighlight = highlightEl;
+                    // Show toolbar near click position
+                    const rect = highlightEl.getBoundingClientRect();
+                    showToolbarAtPosition(rect);
+                }
+            });
+
             // Listen for text selection
             bookContent.addEventListener('mouseup', handleTextSelection);
             bookContent.addEventListener('touchend', function(e) {
@@ -1257,7 +1277,7 @@
 
             // Hide toolbar when clicking elsewhere
             document.addEventListener('mousedown', function(e) {
-                if (!highlightToolbar.contains(e.target)) {
+                if (!highlightToolbar.contains(e.target) && !findHighlightAncestor(e.target)) {
                     hideToolbar();
                 }
             });
@@ -1272,6 +1292,9 @@
 
         function handleTextSelection() {
             setTimeout(() => {
+                // Don't interfere if a highlight was just clicked
+                if (clickedHighlight) return;
+                
                 const selection = window.getSelection();
                 if (selection.rangeCount > 0 && !selection.isCollapsed) {
                     const range = selection.getRangeAt(0);
@@ -1295,6 +1318,9 @@
         }
 
         function handleSelectionChange() {
+            // Don't interfere if a highlight was just clicked
+            if (clickedHighlight) return;
+            
             const selection = window.getSelection();
             if (selection.isCollapsed || selection.toString().trim() === '') {
                 hideToolbar();
@@ -1303,7 +1329,10 @@
 
         function showToolbar(range) {
             const rect = range.getBoundingClientRect();
-            
+            showToolbarAtPosition(rect);
+        }
+
+        function showToolbarAtPosition(rect) {
             // Position toolbar above the selection (using fixed positioning)
             let top = rect.top - 55;
             let left = rect.left + (rect.width / 2) - 70;
@@ -1335,6 +1364,7 @@
         function hideToolbar() {
             highlightToolbar.style.display = 'none';
             selectedRange = null;
+            clickedHighlight = null;
         }
 
         function highlightSelection() {
@@ -1345,6 +1375,8 @@
             
             const range = selection.getRangeAt(0);
             const text = selection.toString().trim();
+            
+            if (!text) return;
             
             // Check if selection is already highlighted
             if (isHighlighted(range)) {
@@ -1364,53 +1396,219 @@
             // Create unique ID for this highlight
             const highlightId = 'highlight_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
             
-            // Create highlight span
-            const highlightSpan = document.createElement('span');
-            highlightSpan.className = 'highlight';
-            highlightSpan.id = highlightId;
+            // Collect all text nodes within the range
+            const textNodesInRange = getTextNodesInRange(range);
+            
+            if (textNodesInRange.length === 0) {
+                console.error('No text nodes found in selection');
+                return;
+            }
             
             try {
-                // Surround the selection with highlight
-                range.surroundContents(highlightSpan);
+                // Wrap each text node (or portion) in its own highlight span
+                const createdSpans = [];
                 
-                // Save highlight to backend with pre-calculated offset
+                textNodesInRange.forEach((info, index) => {
+                    const span = document.createElement('span');
+                    span.className = 'highlight';
+                    span.setAttribute('data-highlight-id', highlightId);
+                    // Only the first span gets the actual id for backend reference
+                    if (index === 0) span.id = highlightId;
+                    
+                    const textNode = info.node;
+                    const nodeText = textNode.textContent;
+                    const sliceStart = info.startOffset;
+                    const sliceEnd = info.endOffset;
+                    
+                    // If we're wrapping the entire text node
+                    if (sliceStart === 0 && sliceEnd === nodeText.length) {
+                        textNode.parentNode.insertBefore(span, textNode);
+                        span.appendChild(textNode);
+                    } else {
+                        // Split the text node and wrap only the selected portion
+                        const before = nodeText.substring(0, sliceStart);
+                        const highlighted = nodeText.substring(sliceStart, sliceEnd);
+                        const after = nodeText.substring(sliceEnd);
+                        
+                        const parent = textNode.parentNode;
+                        
+                        if (before) {
+                            parent.insertBefore(document.createTextNode(before), textNode);
+                        }
+                        
+                        span.textContent = highlighted;
+                        parent.insertBefore(span, textNode);
+                        
+                        if (after) {
+                            parent.insertBefore(document.createTextNode(after), textNode);
+                        }
+                        
+                        parent.removeChild(textNode);
+                    }
+                    
+                    createdSpans.push(span);
+                });
+                
+                // Save highlight to backend
                 saveHighlight(highlightId, text, startOffset)
                     .then(() => {
-                        // Clear selection and hide toolbar
                         selection.removeAllRanges();
                         hideToolbar();
                         console.log('Highlight saved:', text);
                     })
                     .catch(error => {
                         console.error('Failed to save highlight:', error);
-                        // Remove highlight from DOM if save failed
-                        const parent = highlightSpan.parentNode;
-                        while (highlightSpan.firstChild) {
-                            parent.insertBefore(highlightSpan.firstChild, highlightSpan);
-                        }
-                        parent.removeChild(highlightSpan);
+                        // Rollback: remove all created spans
+                        createdSpans.forEach(span => {
+                            const parent = span.parentNode;
+                            if (parent) {
+                                while (span.firstChild) {
+                                    parent.insertBefore(span.firstChild, span);
+                                }
+                                parent.removeChild(span);
+                                parent.normalize();
+                            }
+                        });
                     });
                     
             } catch (error) {
                 console.error('Failed to create highlight:', error);
-                // Fallback for complex selections
-                const contents = range.extractContents();
-                highlightSpan.appendChild(contents);
-                range.insertNode(highlightSpan);
-                
-                // Try to save the fallback highlight
-                saveHighlight(highlightId, text, startOffset)
-                    .catch(err => console.error('Failed to save fallback highlight:', err));
             }
         }
 
+        // Collect all text nodes (or portions) within a Range
+        function getTextNodesInRange(range) {
+            const result = [];
+            const startContainer = range.startContainer;
+            const endContainer = range.endContainer;
+            
+            // If both start and end are in the same text node
+            if (startContainer === endContainer && startContainer.nodeType === Node.TEXT_NODE) {
+                result.push({
+                    node: startContainer,
+                    startOffset: range.startOffset,
+                    endOffset: range.endOffset
+                });
+                return result;
+            }
+            
+            // Walk all text nodes within the common ancestor
+            const ancestor = range.commonAncestorContainer;
+            const walker = document.createTreeWalker(
+                ancestor.nodeType === Node.TEXT_NODE ? ancestor.parentNode : ancestor,
+                NodeFilter.SHOW_TEXT,
+                null,
+                false
+            );
+            
+            let node;
+            let inRange = false;
+            
+            while (node = walker.nextNode()) {
+                if (node === startContainer) {
+                    inRange = true;
+                    // Partial first node
+                    const startOff = range.startOffset;
+                    const endOff = (node === endContainer) ? range.endOffset : node.textContent.length;
+                    if (endOff > startOff) {
+                        result.push({ node: node, startOffset: startOff, endOffset: endOff });
+                    }
+                    if (node === endContainer) break;
+                    continue;
+                }
+                
+                if (node === endContainer) {
+                    // Partial last node
+                    const endOff = range.endOffset;
+                    if (endOff > 0) {
+                        result.push({ node: node, startOffset: 0, endOffset: endOff });
+                    }
+                    break;
+                }
+                
+                if (inRange) {
+                    // Full middle node
+                    if (node.textContent.length > 0) {
+                        result.push({ node: node, startOffset: 0, endOffset: node.textContent.length });
+                    }
+                }
+            }
+            
+            // Handle case where startContainer is an Element node
+            if (result.length === 0 && startContainer.nodeType === Node.ELEMENT_NODE) {
+                const walker2 = document.createTreeWalker(
+                    range.commonAncestorContainer.nodeType === Node.TEXT_NODE 
+                        ? range.commonAncestorContainer.parentNode 
+                        : range.commonAncestorContainer,
+                    NodeFilter.SHOW_TEXT,
+                    null,
+                    false
+                );
+                let n;
+                while (n = walker2.nextNode()) {
+                    if (range.intersectsNode(n) && n.textContent.trim().length > 0) {
+                        const nodeRange = document.createRange();
+                        nodeRange.selectNodeContents(n);
+                        
+                        // Clamp to our range
+                        const startOff = (range.compareBoundaryPoints(Range.START_TO_START, nodeRange) > 0)
+                            ? range.startOffset : 0;
+                        const endOff = (range.compareBoundaryPoints(Range.END_TO_END, nodeRange) < 0)
+                            ? range.endOffset : n.textContent.length;
+                        
+                        if (endOff > startOff) {
+                            result.push({ node: n, startOffset: startOff, endOffset: endOff });
+                        } else {
+                            result.push({ node: n, startOffset: 0, endOffset: n.textContent.length });
+                        }
+                    }
+                }
+            }
+            
+            return result;
+        }
+
         function removeHighlight() {
+            // Case 1: A highlight was clicked directly (click-to-remove)
+            if (clickedHighlight) {
+                const element = clickedHighlight;
+                const highlightId = element.getAttribute('data-highlight-id') || element.id;
+                
+                // Find ALL spans that belong to this highlight group
+                const allSpans = highlightId 
+                    ? Array.from(document.querySelectorAll(`[data-highlight-id="${highlightId}"]`))
+                    : [element];
+                
+                const removeFromBackend = (highlightId && highlightId.startsWith('highlight_'))
+                    ? deleteHighlight(highlightId).catch(err => 
+                        console.error('Failed to delete highlight from backend:', err)
+                    )
+                    : Promise.resolve();
+                
+                removeFromBackend.then(() => {
+                    allSpans.forEach(span => {
+                        const parent = span.parentNode;
+                        if (parent) {
+                            while (span.firstChild) {
+                                parent.insertBefore(span.firstChild, span);
+                            }
+                            parent.removeChild(span);
+                            parent.normalize();
+                        }
+                    });
+                    hideToolbar();
+                    console.log('Highlight removed (click-to-remove)');
+                });
+                return;
+            }
+            
+            // Case 2: Text selection based removal
             const selection = window.getSelection();
             if (selection.rangeCount === 0) return;
             
             const range = selection.getRangeAt(0);
             
-            // Find highlighted parent elements
+            // Find highlighted elements that intersect the selection
             const highlightedElements = getHighlightedElements(range);
             
             if (highlightedElements.length === 0) {
@@ -1418,25 +1616,40 @@
                 return;
             }
             
-            // Get highlight IDs and remove from backend
-            const removePromises = highlightedElements.map(element => {
-                const highlightId = element.id;
-                if (highlightId && highlightId.startsWith('highlight_')) {
-                    return deleteHighlight(highlightId).catch(err => 
-                        console.error('Failed to delete highlight from backend:', err)
-                    );
+            // Collect ALL spans belonging to the same highlight groups
+            const allSpansToRemove = new Set();
+            const highlightIdsToDelete = new Set();
+            
+            highlightedElements.forEach(element => {
+                const groupId = element.getAttribute('data-highlight-id') || element.id;
+                if (groupId) {
+                    if (groupId.startsWith('highlight_')) {
+                        highlightIdsToDelete.add(groupId);
+                    }
+                    // Find all spans in this group
+                    document.querySelectorAll(`[data-highlight-id="${groupId}"]`).forEach(s => allSpansToRemove.add(s));
                 }
-                return Promise.resolve();
+                allSpansToRemove.add(element);
             });
+            
+            // Delete from backend (deduplicated by ID)
+            const removePromises = Array.from(highlightIdsToDelete).map(hid =>
+                deleteHighlight(hid).catch(err => 
+                    console.error('Failed to delete highlight from backend:', err)
+                )
+            );
             
             Promise.all(removePromises).then(() => {
                 // Remove highlights from DOM
-                highlightedElements.forEach(element => {
+                allSpansToRemove.forEach(element => {
                     const parent = element.parentNode;
-                    while (element.firstChild) {
-                        parent.insertBefore(element.firstChild, element);
+                    if (parent) {
+                        while (element.firstChild) {
+                            parent.insertBefore(element.firstChild, element);
+                        }
+                        parent.removeChild(element);
+                        parent.normalize();
                     }
-                    parent.removeChild(element);
                 });
                 
                 // Clear selection and hide toolbar
@@ -1446,30 +1659,91 @@
             });
         }
 
+        // Walk up the DOM to find a .highlight ancestor
+        function findHighlightAncestor(node) {
+            let current = node;
+            while (current && current !== document.body) {
+                if (current.nodeType === Node.ELEMENT_NODE && current.classList.contains('highlight')) {
+                    return current;
+                }
+                current = current.parentNode;
+            }
+            return null;
+        }
+
         function isHighlighted(range) {
-            const container = range.commonAncestorContainer;
-            const elements = container.querySelectorAll ? 
-                           container.querySelectorAll('.highlight') : 
-                           [];
-            
-            return Array.from(elements).some(el => 
-                range.intersectsNode(el)
-            );
+            return getHighlightedElements(range).length > 0;
         }
 
         function getHighlightedElements(range) {
-            const container = range.commonAncestorContainer;
-            const elements = container.querySelectorAll ? 
-                           container.querySelectorAll('.highlight') : 
-                           [];
+            const found = new Set();
             
-            return Array.from(elements).filter(el => 
-                range.intersectsNode(el)
-            );
+            // 1. Check if the start or end of the selection is inside a highlight
+            const startHighlight = findHighlightAncestor(range.startContainer);
+            if (startHighlight) found.add(startHighlight);
+            
+            const endHighlight = findHighlightAncestor(range.endContainer);
+            if (endHighlight) found.add(endHighlight);
+            
+            // 2. Search for any .highlight spans within the range by querying
+            //    the entire book-content container and checking intersection
+            const bookContent = document.querySelector('.book-content');
+            if (bookContent) {
+                const allHighlights = bookContent.querySelectorAll('.highlight');
+                allHighlights.forEach(el => {
+                    if (range.intersectsNode(el)) {
+                        found.add(el);
+                    }
+                });
+            }
+            
+            return Array.from(found);
         }
 
         // Calculate the character offset of a range's start position within a container
         function calculateRangeOffset(container, range) {
+            // Resolve the actual text node and character offset
+            // When startContainer is an Element (e.g. selecting entire paragraph),
+            // startOffset is a child index, not a character offset
+            let targetNode = range.startContainer;
+            let targetCharOffset = range.startOffset;
+            
+            if (targetNode.nodeType === Node.ELEMENT_NODE) {
+                // startOffset is an index into childNodes
+                const children = targetNode.childNodes;
+                if (range.startOffset < children.length) {
+                    const child = children[range.startOffset];
+                    if (child.nodeType === Node.TEXT_NODE) {
+                        targetNode = child;
+                        targetCharOffset = 0;
+                    } else {
+                        // Find the first text node within this child element
+                        const innerWalker = document.createTreeWalker(
+                            child, NodeFilter.SHOW_TEXT, null, false
+                        );
+                        const firstText = innerWalker.nextNode();
+                        if (firstText) {
+                            targetNode = firstText;
+                            targetCharOffset = 0;
+                        }
+                    }
+                } else if (children.length > 0) {
+                    // startOffset === children.length means "after the last child"
+                    // Use the last text node's end
+                    const lastChild = children[children.length - 1];
+                    const innerWalker = document.createTreeWalker(
+                        targetNode, NodeFilter.SHOW_TEXT, null, false
+                    );
+                    let lastText = null;
+                    let n;
+                    while (n = innerWalker.nextNode()) lastText = n;
+                    if (lastText) {
+                        targetNode = lastText;
+                        targetCharOffset = lastText.textContent.length;
+                    }
+                }
+            }
+            
             const walker = document.createTreeWalker(
                 container,
                 NodeFilter.SHOW_TEXT,
@@ -1482,9 +1756,9 @@
             
             // Walk through all text nodes until we find the start of our range
             while (node = walker.nextNode()) {
-                if (node === range.startContainer) {
+                if (node === targetNode) {
                     // Found the start node - add the offset within this node
-                    return currentOffset + range.startOffset;
+                    return currentOffset + targetCharOffset;
                 }
                 // Add this node's length to the running offset
                 currentOffset += node.textContent.length;

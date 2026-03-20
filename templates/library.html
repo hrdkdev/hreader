@@ -59,6 +59,126 @@
             box-shadow: 0 12px 40px rgba(139, 92, 246, 0.3), 0 0 0 2px rgba(139, 92, 246, 0.4);
         }
         
+        .book-remove-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: rgba(239, 68, 68, 0.9);
+            color: white;
+            border: none;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            opacity: 0;
+            transition: opacity 0.2s ease, transform 0.15s ease, background 0.15s ease;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+            line-height: 1;
+        }
+        
+        .book-card:hover .book-remove-btn {
+            opacity: 1;
+        }
+        
+        .book-remove-btn:hover {
+            background: rgba(220, 38, 38, 1);
+            transform: scale(1.15);
+        }
+        
+        .book-card.fade-out {
+            opacity: 0;
+            transform: scale(0.9);
+            transition: opacity 0.4s ease, transform 0.4s ease;
+        }
+        
+        /* Confirmation Modal */
+        .confirm-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(4px);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            pointer-events: none;
+        }
+        
+        .confirm-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        
+        .confirm-dialog {
+            background: #252538;
+            border-radius: 16px;
+            padding: 32px;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(139, 92, 246, 0.2);
+            transform: scale(0.95);
+            transition: transform 0.2s ease;
+        }
+        
+        .confirm-overlay.active .confirm-dialog {
+            transform: scale(1);
+        }
+        
+        .confirm-dialog h3 {
+            margin: 0 0 12px;
+            color: #f4f4f5;
+            font-size: 1.2em;
+        }
+        
+        .confirm-dialog p {
+            color: #a1a1aa;
+            margin: 0 0 24px;
+            font-size: 0.95em;
+            line-height: 1.5;
+        }
+        
+        .confirm-dialog .confirm-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+        
+        .confirm-dialog button {
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: none;
+            font-size: 0.95em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        
+        .confirm-cancel {
+            background: #3f3f46;
+            color: #e4e4e7;
+        }
+        
+        .confirm-cancel:hover {
+            background: #52525b;
+        }
+        
+        .confirm-remove {
+            background: #ef4444;
+            color: white;
+        }
+        
+        .confirm-remove:hover {
+            background: #dc2626;
+        }
+        
         .book-cover { 
             width: 100%; 
             height: 320px; 
@@ -296,7 +416,8 @@
 
         <div class="book-grid">
             {% for book in books %}
-            <div class="book-card" onclick="window.location.href='/read/{{ book.id | urlencode }}'">
+            <div class="book-card" id="card-{{ loop.index }}" onclick="window.location.href='/read/{{ book.id | urlencode }}'">
+                <button class="book-remove-btn" onclick="confirmRemove(event, '{{ book.id | urlencode }}', '{{ book.title | e }}', 'card-{{ loop.index }}')">×</button>
                 <div class="book-cover">
                     <img src="/cover/{{ book.id | urlencode }}" 
                          alt="{{ book.title }}" 
@@ -317,6 +438,68 @@
             {% endfor %}
         </div>
     </div>
+
+    <!-- Confirmation Modal -->
+    <div class="confirm-overlay" id="confirmOverlay">
+        <div class="confirm-dialog">
+            <h3>Remove Book</h3>
+            <p id="confirmMessage">Are you sure?</p>
+            <div class="confirm-actions">
+                <button class="confirm-cancel" onclick="closeConfirm()">Cancel</button>
+                <button class="confirm-remove" id="confirmBtn" onclick="doRemove()">Remove</button>
+            </div>
+        </div>
+    </div>
+    <script>
+        // Book removal logic
+        let pendingRemove = { bookId: null, cardId: null };
+
+        function confirmRemove(event, bookId, title, cardId) {
+            event.stopPropagation();
+            event.preventDefault();
+            pendingRemove = { bookId: decodeURIComponent(bookId), cardId };
+            document.getElementById('confirmMessage').textContent =
+                `Remove "${title}"? This will delete all reading progress and highlights.`;
+            document.getElementById('confirmOverlay').classList.add('active');
+        }
+
+        function closeConfirm() {
+            document.getElementById('confirmOverlay').classList.remove('active');
+            pendingRemove = { bookId: null, cardId: null };
+        }
+
+        async function doRemove() {
+            const { bookId, cardId } = pendingRemove;
+            if (!bookId) return;
+            closeConfirm();
+
+            try {
+                const resp = await fetch(`/api/books/${encodeURIComponent(bookId)}`, { method: 'DELETE' });
+                if (!resp.ok) {
+                    const err = await resp.json();
+                    alert(err.detail || 'Failed to remove book');
+                    return;
+                }
+                const card = document.getElementById(cardId);
+                if (card) {
+                    card.classList.add('fade-out');
+                    card.addEventListener('transitionend', () => card.remove());
+                }
+            } catch (e) {
+                alert('Error removing book: ' + e.message);
+            }
+        }
+
+        // Close modal on overlay click
+        document.getElementById('confirmOverlay').addEventListener('click', function(e) {
+            if (e.target === this) closeConfirm();
+        });
+
+        // Close modal on Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') closeConfirm();
+        });
+    </script>
     <script>
         // Check for audiobook availability for each book
         document.addEventListener('DOMContentLoaded', function() {

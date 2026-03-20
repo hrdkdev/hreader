@@ -1,6 +1,7 @@
 import json
 import os
 import pickle
+import shutil
 from datetime import datetime
 from functools import lru_cache
 from typing import Any, Dict, List, Optional
@@ -486,6 +487,46 @@ async def library_view(request: Request):
     return templates.TemplateResponse(
         "library.html", {"request": request, "books": books}
     )
+
+
+@app.delete("/api/books/{book_id}")
+async def delete_book(book_id: str):
+    """Delete a book's _data directory from the library."""
+    safe_book_id = os.path.basename(book_id)
+
+    # Validate that it's a _data directory
+    if not safe_book_id.endswith("_data"):
+        raise HTTPException(status_code=400, detail="Invalid book ID")
+
+    book_path = os.path.join(BOOKS_DIR, safe_book_id)
+    if not os.path.isdir(book_path):
+        raise HTTPException(status_code=404, detail="Book not found")
+
+    try:
+        shutil.rmtree(book_path)
+        # Clear the LRU cache so the deleted book doesn't linger
+        load_book_cached.cache_clear()
+
+        # Also delete the source epub/pdf from books/ directory
+        # The _data dir name maps to the source file: e.g. "Sapiens_data" -> "books/Sapiens.epub"
+        base_name = safe_book_id[: -len("_data")]  # strip _data suffix
+        deleted_source = False
+        for ext in (".epub", ".pdf"):
+            source_path = os.path.join("books", base_name + ext)
+            if os.path.exists(source_path):
+                os.remove(source_path)
+                deleted_source = True
+                print(f"Deleted source file: {source_path}")
+
+        return {
+            "status": "success",
+            "message": f"Book '{safe_book_id}' removed",
+            "source_deleted": deleted_source,
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to delete book: {str(e)}"
+        )
 
 
 @app.get("/read/{book_id}", response_class=HTMLResponse)
